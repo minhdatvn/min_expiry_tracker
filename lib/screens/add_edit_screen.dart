@@ -33,7 +33,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   DateTime? _openedDate;
   late List<int> _alertDays;
 
-  // Lưu cả chuỗi Base64 (để lưu dữ liệu) và bytes (để vẽ ảnh mượt mà, không phải giải mã lại nhiều lần)
+  // Lưu cả chuỗi Base64 (để lưu dữ liệu) và bytes (để vẽ ảnh mượt mà)
   String? _imageBase64;
   Uint8List? _imageBytes;
 
@@ -58,7 +58,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _expiryDate = item?.expiryDate;
     _openedDate = item?.openedDate;
 
-    // Tạo bản sao danh sách alertDays để tránh làm hỏng dữ liệu gốc nếu người dùng bấm hủy
+    // Tạo bản sao danh sách alertDays để tránh làm hỏng dữ liệu gốc nếu bấm hủy
     _alertDays = item != null ? List<int>.from(item.alertDays) : [30, 7];
     _alertDays.sort((a, b) => b.compareTo(a)); // Sắp xếp từ lớn đến nhỏ (VD: 30, 7)
 
@@ -68,7 +68,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   @override
   void dispose() {
-    // RẤT QUAN TRỌNG: Dọn dẹp các Controller khỏi bộ nhớ RAM khi đóng màn hình
+    // Dọn dẹp các Controller khỏi bộ nhớ RAM khi đóng màn hình
     _nameController.dispose();
     _paoMonthsController.dispose();
     _quantityController.dispose();
@@ -80,7 +80,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
 
-    // Thu nhỏ ảnh về tối đa 600x600px và nén chất lượng 70% -> Ảnh chỉ còn khoảng 25-40KB!
+    // Thu nhỏ ảnh về tối đa 600x600px và nén chất lượng 70% -> Ảnh chỉ còn khoảng 25-40KB
     final XFile? pickedFile = await picker.pickImage(
       source: source,
       maxWidth: 600,
@@ -124,7 +124,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
             if (_imageBytes != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                title: const Text(
+                  'Remove Photo',
+                  style: TextStyle(color: Colors.red),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   setState(() {
@@ -221,9 +224,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
 
     final savedItem = HouseholdItem(
-      // Tạm dùng thời gian hiện tại làm ID khi đang dùng dữ liệu mẫu;
-      // Sang Giai đoạn 3 (SQLite) cơ sở dữ liệu sẽ tự cấp ID chuẩn.
-      id: widget.existingItem?.id ?? DateTime.now().millisecondsSinceEpoch,
+      // Nếu thêm mới thì id là null để SQLite tự cấp ID chuẩn (1, 2, 3...)
+      id: widget.existingItem?.id,
       name: _nameController.text.trim(),
       category: _selectedCategory,
       expiryDate: _expiryDate!,
@@ -314,13 +316,18 @@ class _AddEditScreenState extends State<AddEditScreen> {
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.add_a_photo_outlined,
-                                  size: 32, color: Colors.grey.shade600),
+                              Icon(
+                                Icons.add_a_photo_outlined,
+                                size: 32,
+                                color: Colors.grey.shade600,
+                              ),
                               const SizedBox(height: 6),
                               Text(
                                 'Add Photo',
                                 style: TextStyle(
-                                    fontSize: 12, color: Colors.grey.shade600),
+                                  fontSize: 12,
+                                  color: Colors.grey.shade600,
+                                ),
                               ),
                             ],
                           ),
@@ -338,7 +345,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   hintText: 'e.g., Vitamin C Serum, Panadol',
                   border: OutlineInputBorder(),
                 ),
-                // Kiểm tra: nếu bỏ trống thì báo lỗi đỏ ngay dưới ô nhập
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter an item name';
@@ -380,7 +386,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       ? dateFormat.format(_expiryDate!)
                       : 'Tap to select date',
                   style: TextStyle(
-                    color: _expiryDate != null ? Colors.black87 : Colors.red.shade700,
+                    color: _expiryDate != null
+                        ? Colors.black87
+                        : Colors.red.shade700,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -408,7 +416,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     flex: 3,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 10),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 10,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -498,7 +509,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
               const SizedBox(height: 8),
 
-              // Wrap giúp các thẻ mốc cảnh báo tự động xuống dòng khi hết chỗ ngang
               Wrap(
                 spacing: 8,
                 runSpacing: 4,
@@ -511,7 +521,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       },
                     );
                   }),
-                  // Nút bấm để thêm mốc ngày mới
                   ActionChip(
                     avatar: const Icon(Icons.add, size: 18),
                     label: const Text('Add alert'),
@@ -541,4 +550,4 @@ class _AddEditScreenState extends State<AddEditScreen> {
       ),
     );
   }
-} 
+}
