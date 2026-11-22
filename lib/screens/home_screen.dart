@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/item_model.dart';
+import '../services/database_service.dart';
+import '../services/notify_service.dart';
 import '../widgets/item_card.dart';
+import 'add_edit_screen.dart';
+import 'settings_screen.dart';
 
-// StatefulWidget: Dùng khi màn hình CÓ sự thay đổi giao diện theo thao tác người dùng
-// (ví dụ: bấm chọn bộ lọc Medicine, Cosmetics -> danh sách vẽ lại ngay lập tức).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -12,7 +14,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Danh mục đang được chọn để lọc (mặc định là "All")
+  // Danh mục đang chọn để lọc (mặc định là hiển thị tất cả)
   String _selectedCategory = 'All';
 
   final List<String> _categories = [
@@ -23,62 +25,79 @@ class _HomeScreenState extends State<HomeScreen> {
     'Other',
   ];
 
-  // Dữ liệu mẫu (Mock Data) để chạy thử giao diện trước khi gắn SQLite
-  final List<HouseholdItem> _items = [
-    HouseholdItem(
-      id: 1,
-      name: 'Vitamin C Serum',
-      category: 'Cosmetics',
-      expiryDate: DateTime.now().add(const Duration(days: 200)),
-      openedDate: DateTime.now().subtract(const Duration(days: 175)),
-      paoMonths: 6, // Mở nắp gần 6 tháng -> PAO sẽ đến trước HSD bao bì!
-      quantity: 1,
-      owner: 'Me',
-      alertDays: [30, 7],
-    ),
-    HouseholdItem(
-      id: 2,
-      name: 'Paracetamol 500mg',
-      category: 'Medicine',
-      expiryDate: DateTime.now().add(const Duration(days: 20)),
-      quantity: 2,
-      owner: 'Family',
-      alertDays: [60, 14], // Cảnh báo sớm hơn dành riêng cho thuốc
-    ),
-    HouseholdItem(
-      id: 3,
-      name: 'Fresh Oat Milk',
-      category: 'Food',
-      expiryDate: DateTime.now().subtract(const Duration(days: 2)), // Đã quá hạn 2 ngày
-      quantity: 1,
-      alertDays: [3, 1],
-    ),
-    HouseholdItem(
-      id: 4,
-      name: 'Sunscreen SPF 50+',
-      category: 'Cosmetics',
-      expiryDate: DateTime.now().add(const Duration(days: 120)),
-      owner: 'Me',
-      alertDays: [30, 7],
-    ),
-  ];
+  // Danh sách vật phẩm thật đọc từ SQLite
+  List<HouseholdItem> _items = [];
+  // Biến đánh dấu trạng thái đang tải dữ liệu để hiện vòng xoay loading
+  bool _isLoading = true;
 
-  // Lọc theo danh mục đang chọn và sắp xếp món nào sắp hết hạn lên đầu
+  @override
+  void initState() {
+    super.initState();
+    // Vừa mở màn hình lên là gọi SQLite tải dữ liệu ngay
+    _loadItems();
+  }
+
+  // Đọc toàn bộ vật phẩm từ cơ sở dữ liệu offline
+  Future<void> _loadItems() async {
+    final items = await DatabaseService.instance.getAllItems();
+
+    // Kiểm tra màn hình còn đang mở không trước khi cập nhật giao diện
+    if (!mounted) return;
+    setState(() {
+      _items = items;
+      _isLoading = false;
+    });
+  }
+
+  // Lọc theo danh mục và tự động sắp xếp món sắp hết hạn lên đầu
   List<HouseholdItem> get _filteredItems {
     final filtered = _selectedCategory == 'All'
         ? List<HouseholdItem>.from(_items)
         : _items.where((item) => item.category == _selectedCategory).toList();
 
-    // Sắp xếp tăng dần theo số ngày còn lại (số âm/số nhỏ lên trên cùng)
     filtered.sort((a, b) => a.daysRemaining.compareTo(b.daysRemaining));
     return filtered;
+  }
+
+  // Mở màn hình Thêm/Sửa và đồng bộ cả SQLite lẫn Lịch thông báo
+  Future<void> _openAddEditScreen({HouseholdItem? existingItem}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddEditScreen(existingItem: existingItem),
+      ),
+    );
+
+    // Người dùng bấm nút Back không lưu gì -> thoát
+    if (result == null) return;
+
+    if (result == 'delete' && existingItem?.id != null) {
+      // Xóa trong SQLite + Hủy toàn bộ lịch nhắc của món đó
+      await DatabaseService.instance.deleteItem(existingItem!.id!);
+      await NotifyService.instance.cancelItemAlerts(existingItem.id!);
+    } else if (result is HouseholdItem) {
+      if (existingItem == null) {
+        // Thêm mới -> lấy mã ID mới do SQLite cấp -> đặt lịch nhắc
+        final newId = await DatabaseService.instance.insertItem(result);
+        await NotifyService.instance.scheduleItemAlerts(
+          result,
+          overrideId: newId,
+        );
+      } else {
+        // Chỉnh sửa -> lưu SQLite -> tự động hủy lịch cũ và đặt lịch mới
+        await DatabaseService.instance.updateItem(result);
+        await NotifyService.instance.scheduleItemAlerts(result);
+      }
+    }
+
+    // Tải lại danh sách mới nhất từ SQLite để hiển thị
+    await _loadItems();
   }
 
   @override
   Widget build(BuildContext context) {
     final displayItems = _filteredItems;
 
-    // Scaffold là "bộ khung" chuẩn của một màn hình Android (gồm AppBar, Body, Nút +)
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -86,19 +105,29 @@ class _HomeScreenState extends State<HomeScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // Nút Cài đặt (sẽ dùng cho Backup/Restore và Đổi ngôn ngữ sau này)
+          // Nút chuông để kiểm tra nhanh hệ thống thông báo trên Android
+          IconButton(
+            icon: const Icon(Icons.notifications_active_outlined),
+            tooltip: 'Test Notification',
+            onPressed: () {
+              NotifyService.instance.showTestNotification();
+            },
+          ),
+          // Nút Cài đặt (Backup & Restore)
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Settings',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Settings & Backup coming soon!')),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
               );
+              // Khi quay lại từ Settings, tải lại danh sách (phòng trường hợp vừa Restore)
+              await _loadItems();
             },
           ),
         ],
       ),
-
       body: Column(
         children: [
           // --- 1. THANH LỌC DANH MỤC (CUỘN NGANG) ---
@@ -117,7 +146,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   label: Text(category),
                   selected: isSelected,
                   onSelected: (selected) {
-                    // setState báo cho Flutter biết dữ liệu đã đổi -> hãy vẽ lại màn hình!
                     setState(() {
                       _selectedCategory = category;
                     });
@@ -127,43 +155,44 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // --- 2. DANH SÁCH VẬT PHẨM ---
+          // --- 2. DANH SÁCH VẬT PHẨM TỪ SQLITE ---
           Expanded(
-            child: displayItems.isEmpty
-                // Nếu danh mục không có món nào -> hiện thông báo thân thiện
-                ? Center(
-                    child: Text(
-                      'No items in $_selectedCategory yet.',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 15),
-                    ),
-                  )
-                // ListView.builder chỉ vẽ những thẻ đang nằm trong tầm mắt -> siêu mượt trên Android!
-                : ListView.builder(
-                    padding: const EdgeInsets.only(top: 4, bottom: 80),
-                    itemCount: displayItems.length,
-                    itemBuilder: (context, index) {
-                      final item = displayItems[index];
-                      return ItemCard(
-                        item: item,
-                        onTap: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Tapped on ${item.name}')),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : displayItems.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            _items.isEmpty
+                                ? 'No items yet.\nTap "+ Add Item" to track your first item!'
+                                : 'No items in $_selectedCategory.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.only(top: 4, bottom: 80),
+                        itemCount: displayItems.length,
+                        itemBuilder: (context, index) {
+                          final item = displayItems[index];
+                          return ItemCard(
+                            item: item,
+                            onTap: () => _openAddEditScreen(existingItem: item),
                           );
                         },
-                      );
-                    },
-                  ),
+                      ),
           ),
         ],
       ),
 
       // --- 3. NÚT THÊM VẬT PHẨM MỚI ---
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Add Item screen coming in next step!')),
-          );
-        },
+        onPressed: () => _openAddEditScreen(),
         icon: const Icon(Icons.add),
         label: const Text('Add Item'),
       ),
