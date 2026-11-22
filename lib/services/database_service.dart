@@ -3,36 +3,30 @@ import 'package:sqflite/sqflite.dart';
 import '../models/item_model.dart';
 
 class DatabaseService {
-  // --- MẪU THIẾT KẾ SINGLETON ---
-  // Đảm bảo cả ứng dụng chỉ dùng DUY NHẤT 1 kết nối tới kho dữ liệu,
-  // tránh mở nhiều kết nối cùng lúc gây nặng máy hoặc khóa file database.
   static final DatabaseService instance = DatabaseService._init();
   static Database? _database;
 
-  // Hàm khởi tạo riêng tư (có dấu gạch dưới _) để bên ngoài không tự tạo thêm bản sao
   DatabaseService._init();
 
-  // Lấy kết nối database: nếu đã mở rồi thì dùng lại, chưa mở thì khởi tạo mới
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB('min_expiry_tracker.db');
     return _database!;
   }
 
-  // Tìm thư mục an toàn trên Android và mở (hoặc tạo mới) file database
   Future<Database> _initDB(String fileName) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, fileName);
 
     return await openDatabase(
       path,
-      version: 1,
-      onCreate: _createDB, // Hàm này chỉ chạy 1 lần duy nhất khi cài app lần đầu
+      version: 2,              // Tăng từ 1 lên 2 để kích hoạt onUpgrade trên máy ảo
+      onCreate: _createDB,     // Chạy khi cài app mới hoàn toàn
+      onUpgrade: _upgradeDB,   // Chạy tự động khi nâng cấp từ bản cũ (v1 -> v2)
     );
   }
 
-  // Tạo bảng "items" giống như kẻ tiêu đề các cột trong 1 trang Excel
-  // Lưu ý: Tên các cột phải KHỚP 100% với hàm toMap() trong item_model.dart
+  // Tạo bảng mới (dành cho máy cài lần đầu) -> Đã có sẵn cột paoUnit
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE items (
@@ -42,6 +36,7 @@ class DatabaseService {
         expiryDate TEXT NOT NULL,
         openedDate TEXT,
         paoMonths INTEGER,
+        paoUnit TEXT DEFAULT 'months',
         quantity INTEGER,
         imageBase64 TEXT,
         owner TEXT,
@@ -50,35 +45,41 @@ class DatabaseService {
     ''');
   }
 
-  // 1. CREATE: Thêm một vật phẩm mới vào kho và trả về mã ID mà SQLite tự cấp
+  // Tự động thêm cột paoUnit nếu máy đã có sẵn database v1 (khỏi phải gỡ app)
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute(
+        "ALTER TABLE items ADD COLUMN paoUnit TEXT DEFAULT 'months'",
+      );
+    }
+  }
+
+  // 1. CREATE
   Future<int> insertItem(HouseholdItem item) async {
     final db = await instance.database;
-    // Bỏ trường 'id' để SQLite tự động đánh số tăng dần (1, 2, 3...)
     final data = item.toMap()..remove('id');
     return await db.insert('items', data);
   }
 
-  // 2. READ: Lấy toàn bộ danh sách vật phẩm đang lưu trong máy
+  // 2. READ
   Future<List<HouseholdItem>> getAllItems() async {
     final db = await instance.database;
     final maps = await db.query('items');
-
-    // Chuyển từng dòng dữ liệu Map từ SQLite thành đối tượng HouseholdItem
     return maps.map((map) => HouseholdItem.fromMap(map)).toList();
   }
 
-  // 3. UPDATE: Cập nhật thông tin một vật phẩm dựa theo đúng mã ID của nó
+  // 3. UPDATE
   Future<int> updateItem(HouseholdItem item) async {
     final db = await instance.database;
     return await db.update(
       'items',
       item.toMap(),
-      where: 'id = ?',        // Dấu ? giúp chống lỗi cú pháp và bảo mật truy vấn
-      whereArgs: [item.id],   // Thay giá trị item.id vào vị trí dấu ?
+      where: 'id = ?',
+      whereArgs: [item.id],
     );
   }
 
-  // 4. DELETE: Xóa hẳn một vật phẩm khỏi kho dữ liệu theo ID
+  // 4. DELETE
   Future<int> deleteItem(int id) async {
     final db = await instance.database;
     return await db.delete(
@@ -88,7 +89,7 @@ class DatabaseService {
     );
   }
 
-  // 5. Xóa toàn bộ các dòng trong bảng items (dùng trước khi khôi phục bản sao lưu)
+  // 5. Xóa toàn bộ dữ liệu (dùng trước khi Restore)
   Future<void> clearAllItems() async {
     final db = await instance.database;
     await db.delete('items');

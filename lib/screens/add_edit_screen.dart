@@ -6,8 +6,6 @@ import 'package:intl/intl.dart';
 import '../models/item_model.dart';
 
 class AddEditScreen extends StatefulWidget {
-  // Nếu existingItem == null -> Chế độ THÊM MỚI
-  // Nếu existingItem != null -> Chế độ CHỈNH SỬA vật phẩm đó
   final HouseholdItem? existingItem;
 
   const AddEditScreen({super.key, this.existingItem});
@@ -17,23 +15,20 @@ class AddEditScreen extends StatefulWidget {
 }
 
 class _AddEditScreenState extends State<AddEditScreen> {
-  // Chìa khóa giúp kiểm tra hợp lệ (validate) toàn bộ các ô nhập liệu cùng lúc
   final _formKey = GlobalKey<FormState>();
 
-  // Các "bộ điều khiển" (Controller) để đọc và gán chữ trong ô nhập liệu
   late final TextEditingController _nameController;
-  late final TextEditingController _paoMonthsController;
+  late final TextEditingController _paoValueController; // Đổi tên từ paoMonths -> paoValue
   late final TextEditingController _quantityController;
   late final TextEditingController _ownerController;
 
-  // Các biến lưu trạng thái đang chọn trên màn hình
   final List<String> _categories = ['Medicine', 'Cosmetics', 'Food', 'Other'];
   late String _selectedCategory;
   DateTime? _expiryDate;
   DateTime? _openedDate;
+  late String _paoUnit; // MỚI: Lưu đơn vị PAO ('months', 'days', 'hours')
   late List<int> _alertDays;
 
-  // Lưu cả chuỗi Base64 (để lưu dữ liệu) và bytes (để vẽ ảnh mượt mà)
   String? _imageBase64;
   Uint8List? _imageBytes;
 
@@ -44,10 +39,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
     super.initState();
     final item = widget.existingItem;
 
-    // Nếu đang sửa thì điền sẵn dữ liệu cũ, nếu thêm mới thì để giá trị mặc định
     _nameController = TextEditingController(text: item?.name ?? '');
-    _paoMonthsController = TextEditingController(
-      text: item?.paoMonths?.toString() ?? '',
+    _paoValueController = TextEditingController(
+      text: item?.paoValue?.toString() ?? '',
     );
     _quantityController = TextEditingController(
       text: item?.quantity?.toString() ?? '',
@@ -57,10 +51,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _selectedCategory = item?.category ?? 'Medicine';
     _expiryDate = item?.expiryDate;
     _openedDate = item?.openedDate;
+    _paoUnit = item?.paoUnit ?? 'months';
 
-    // Tạo bản sao danh sách alertDays để tránh làm hỏng dữ liệu gốc nếu bấm hủy
     _alertDays = item != null ? List<int>.from(item.alertDays) : [30, 7];
-    _alertDays.sort((a, b) => b.compareTo(a)); // Sắp xếp từ lớn đến nhỏ (VD: 30, 7)
+    _alertDays.sort((a, b) => b.compareTo(a));
 
     _imageBase64 = item?.imageBase64;
     _imageBytes = item?.imageBytes;
@@ -68,9 +62,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   @override
   void dispose() {
-    // Dọn dẹp các Controller khỏi bộ nhớ RAM khi đóng màn hình
     _nameController.dispose();
-    _paoMonthsController.dispose();
+    _paoValueController.dispose();
     _quantityController.dispose();
     _ownerController.dispose();
     super.dispose();
@@ -79,8 +72,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
   // --- 1. CHỌN HOẶC CHỤP ẢNH VÀ TỰ ĐỘNG NÉN SANG BASE64 ---
   Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-
-    // Thu nhỏ ảnh về tối đa 600x600px và nén chất lượng 70% -> Ảnh chỉ còn khoảng 25-40KB
     final XFile? pickedFile = await picker.pickImage(
       source: source,
       maxWidth: 600,
@@ -88,9 +79,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
       imageQuality: 70,
     );
 
-    if (pickedFile == null) return; // Người dùng bấm hủy không chọn ảnh
+    if (pickedFile == null) return;
 
-    // Đọc dữ liệu ảnh đã nén và mã hóa thành chuỗi Base64
     final Uint8List bytes = await pickedFile.readAsBytes();
     setState(() {
       _imageBytes = bytes;
@@ -98,7 +88,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
     });
   }
 
-  // Hiện bảng trượt từ đáy màn hình để chọn Camera hay Thư viện ảnh
   void _showImageSourceSheet() {
     showModalBottomSheet(
       context: context,
@@ -144,9 +133,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   // --- 2. MỞ LỊCH CHỌN NGÀY ---
   Future<void> _selectDate({required bool isExpiryDate}) async {
+    final now = DateTime.now();
     final initial = isExpiryDate
-        ? (_expiryDate ?? DateTime.now().add(const Duration(days: 30)))
-        : (_openedDate ?? DateTime.now());
+        ? (_expiryDate ?? now.add(const Duration(days: 30)))
+        : (_openedDate ?? now);
 
     final picked = await showDatePicker(
       context: context,
@@ -160,8 +150,38 @@ class _AddEditScreenState extends State<AddEditScreen> {
         if (isExpiryDate) {
           _expiryDate = picked;
         } else {
-          _openedDate = picked;
+          // Giữ lại giờ/phút cũ (hoặc lấy giờ hiện tại nếu mới chọn lần đầu)
+          final hour = _openedDate?.hour ?? now.hour;
+          final minute = _openedDate?.minute ?? now.minute;
+          _openedDate = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            hour,
+            minute,
+          );
         }
+      });
+    }
+  }
+
+  // --- 2B. MỚI: MỞ ĐỒNG HỒ CHỌN GIỜ MỞ NẮP (Dùng khi PAO tính theo Giờ) ---
+  Future<void> _selectOpenedTime() async {
+    final baseDate = _openedDate ?? DateTime.now();
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(baseDate),
+    );
+
+    if (pickedTime != null) {
+      setState(() {
+        _openedDate = DateTime(
+          baseDate.year,
+          baseDate.month,
+          baseDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
       });
     }
   }
@@ -205,17 +225,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
     if (newDays != null && !_alertDays.contains(newDays)) {
       setState(() {
         _alertDays.add(newDays);
-        _alertDays.sort((a, b) => b.compareTo(a)); // Giữ thứ tự từ xa đến gần
+        _alertDays.sort((a, b) => b.compareTo(a));
       });
     }
   }
 
   // --- 4. LƯU VẬT PHẨM VÀ TRẢ KẾT QUẢ VỀ MÀN HÌNH CHÍNH ---
   void _saveItem() {
-    // Kiểm tra xem các ô bắt buộc (như Name) đã nhập chưa
     if (!_formKey.currentState!.validate()) return;
 
-    // Kiểm tra bắt buộc phải chọn ngày hết hạn
     if (_expiryDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select an expiry date.')),
@@ -224,13 +242,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
 
     final savedItem = HouseholdItem(
-      // Nếu thêm mới thì id là null để SQLite tự cấp ID chuẩn (1, 2, 3...)
       id: widget.existingItem?.id,
       name: _nameController.text.trim(),
       category: _selectedCategory,
       expiryDate: _expiryDate!,
       openedDate: _openedDate,
-      paoMonths: int.tryParse(_paoMonthsController.text.trim()),
+      paoValue: int.tryParse(_paoValueController.text.trim()),
+      paoUnit: _paoUnit,
       quantity: int.tryParse(_quantityController.text.trim()),
       owner: _ownerController.text.trim().isEmpty
           ? null
@@ -239,7 +257,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
       alertDays: _alertDays,
     );
 
-    // Đóng màn hình này và gửi vật phẩm vừa lưu ngược về HomeScreen
     Navigator.pop(context, savedItem);
   }
 
@@ -264,7 +281,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
       ),
     );
 
-    // Nếu người dùng đồng ý xóa -> đóng màn hình và gửi tín hiệu 'delete' về HomeScreen
     if (confirm == true && mounted) {
       Navigator.pop(context, 'delete');
     }
@@ -273,12 +289,12 @@ class _AddEditScreenState extends State<AddEditScreen> {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM dd, yyyy');
+    final timeFormat = DateFormat('HH:mm');
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Item' : 'Add New Item'),
         actions: [
-          // Chỉ hiện nút Xóa khi đang mở một vật phẩm đã có sẵn
           if (_isEditing)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
@@ -287,8 +303,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
             ),
         ],
       ),
-
-      // SingleChildScrollView giúp cuộn màn hình mượt khi bàn phím Android bật lên
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -296,7 +310,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // === KHU VỰC 1: ẢNH CHỤP SẢN PHẨM (TÙY CHỌN) ===
+              // === KHU VỰC 1: ẢNH CHỤP SẢN PHẨM ===
               Center(
                 child: GestureDetector(
                   onTap: _showImageSourceSheet,
@@ -342,7 +356,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 textCapitalization: TextCapitalization.words,
                 decoration: const InputDecoration(
                   labelText: 'Item Name *',
-                  hintText: 'e.g., Vitamin C Serum, Panadol',
+                  hintText: 'e.g., Vitamin C Serum, Fresh Milk',
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
@@ -354,7 +368,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Danh mục sản phẩm (Bắt buộc)
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
                 decoration: const InputDecoration(
@@ -372,7 +385,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Chọn Ngày hết hạn trên bao bì (Bắt buộc)
               ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 shape: RoundedRectangleBorder(
@@ -397,27 +409,67 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
               const SizedBox(height: 24),
 
-              // === KHU VỰC 3: HẠN SỬ DỤNG SAU MỞ NẮP - PAO (TÙY CHỌN) ===
+              // === KHU VỰC 3: HẠN SỬ DỤNG SAU MỞ NẮP - PAO (ĐÃ NÂNG CẤP) ===
               const Text(
                 'Period After Opening (Optional)',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                'Useful for cosmetics & eye drops. Fill both fields to track PAO.',
+                'Track by months (cosmetics), days (milk), or hours (prepared food).',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 10),
 
+              // Hàng 1: Nhập số PAO + Chọn đơn vị (Months / Days / Hours)
               Row(
                 children: [
-                  // Chọn ngày mở nắp
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _paoValueController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'PAO Value',
+                        hintText: 'e.g., 6',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: DropdownButtonFormField<String>(
+                      value: _paoUnit,
+                      decoration: const InputDecoration(
+                        labelText: 'Unit',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'months', child: Text('Months')),
+                        DropdownMenuItem(value: 'days', child: Text('Days')),
+                        DropdownMenuItem(value: 'hours', child: Text('Hours')),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _paoUnit = value);
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Hàng 2: Chọn Ngày mở nắp + Tự hiện nút Chọn Giờ nếu đơn vị là Hours
+              Row(
+                children: [
                   Expanded(
                     flex: 3,
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                          vertical: 16,
+                          vertical: 15,
                           horizontal: 10,
                         ),
                         shape: RoundedRectangleBorder(
@@ -434,32 +486,42 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       onPressed: () => _selectDate(isExpiryDate: false),
                     ),
                   ),
+                  // Chỉ hiện nút chọn giờ khi người dùng chọn đơn vị là 'hours'
+                  if (_paoUnit == 'hours') ...[
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 15,
+                            horizontal: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: const Icon(Icons.access_time, size: 18),
+                        label: Text(
+                          _openedDate != null
+                              ? timeFormat.format(_openedDate!)
+                              : 'Time',
+                        ),
+                        onPressed: _selectOpenedTime,
+                      ),
+                    ),
+                  ],
                   if (_openedDate != null)
                     IconButton(
                       icon: const Icon(Icons.close, size: 18),
                       tooltip: 'Clear opened date',
                       onPressed: () => setState(() => _openedDate = null),
                     ),
-                  const SizedBox(width: 10),
-
-                  // Nhập số tháng dùng sau khi mở
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _paoMonthsController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'PAO (Months)',
-                        hintText: '6',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // === KHU VỰC 4: SỐ LƯỢNG & NGƯỜI SỬ DỤNG (TÙY CHỌN) ===
+              // === KHU VỰC 4: SỐ LƯỢNG & NGƯỜI SỬ DỤNG ===
               const Text(
                 'Additional Details (Optional)',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
@@ -497,7 +559,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               ),
               const SizedBox(height: 24),
 
-              // === KHU VỰC 5: MỐC CẢNH BÁO RIÊNG CHO TỪNG MÓN ===
+              // === KHU VỰC 5: MỐC CẢNH BÁO RIÊNG ===
               const Text(
                 'Custom Alert Milestones',
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),

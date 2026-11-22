@@ -55,7 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ? List<HouseholdItem>.from(_items)
         : _items.where((item) => item.category == _selectedCategory).toList();
 
-    filtered.sort((a, b) => a.daysRemaining.compareTo(b.daysRemaining));
+    filtered.sort((a, b) => a.timeRemaining.compareTo(b.timeRemaining));
     return filtered;
   }
 
