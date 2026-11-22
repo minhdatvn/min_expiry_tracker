@@ -54,7 +54,7 @@ class BackupService {
   Future<int?> importBackup() async {
     // Mở trình chọn file của Android (có thể chọn từ Bộ nhớ máy hoặc Google Drive)
     // Mẹo: Dùng FileType.any vì một số máy Android bị ẩn file .json nếu lọc đuôi quá chặt
-    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+    final FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.any,
     );
 

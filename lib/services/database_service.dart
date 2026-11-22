@@ -61,7 +61,7 @@ class DatabaseService {
   // 2. READ: Lấy toàn bộ danh sách vật phẩm đang lưu trong máy
   Future<List<HouseholdItem>> getAllItems() async {
     final db = await instance.database;
-    final List> maps = await db.query('items');
+    final maps = await db.query('items');
 
     // Chuyển từng dòng dữ liệu Map từ SQLite thành đối tượng HouseholdItem
     return maps.map((map) => HouseholdItem.fromMap(map)).toList();
@@ -87,4 +87,10 @@ class DatabaseService {
       whereArgs: [id],
     );
   }
-} 
+
+  // 5. Xóa toàn bộ các dòng trong bảng items (dùng trước khi khôi phục bản sao lưu)
+  Future<void> clearAllItems() async {
+    final db = await instance.database;
+    await db.delete('items');
+  }
+}
