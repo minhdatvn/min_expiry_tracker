@@ -1,23 +1,23 @@
-// Khuôn mẫu (Class) định nghĩa toàn bộ thông tin của 1 vật phẩm gia đình
+import 'dart:convert';    // Thư viện có sẵn của Dart để chuyển đổi giữa Ảnh <-> Chuỗi Base64
+import 'dart:typed_data'; // Thư viện cung cấp kiểu dữ liệu mảng byte (Uint8List) để vẽ ảnh
+
 class HouseholdItem {
-  // --- CÁC THÔNG TIN BẮT BUỘC (Không có dấu ?) ---
-  final String name;          // Tên vật phẩm (VD: "Vitamin C Serum")
-  final String category;      // Loại (VD: "Cosmetics", "Medicine", "Food")
-  final DateTime expiryDate;  // Hạn sử dụng in trên bao bì
+  // --- THÔNG TIN BẮT BUỘC ---
+  final String name;
+  final String category;
+  final DateTime expiryDate;
 
-  // --- CÁC THÔNG TIN TÙY CHỌN (Có dấu ? nghĩa là có thể để trống/null) ---
-  final int? id;              // Mã định danh (SQLite sẽ tự cấp khi lưu)
-  final DateTime? openedDate; // Ngày bắt đầu mở nắp
-  final int? paoMonths;       // Hạn sử dụng sau khi mở nắp tính bằng THÁNG (VD: 6)
-  final int? quantity;        // Số lượng (VD: 2)
-  final String? imagePath;    // Đường dẫn tới file ảnh chụp lưu trong điện thoại
-  final String? owner;        // Người sử dụng (VD: "Mom", "Me", "Shared")
+  // --- THÔNG TIN TÙY CHỌN ---
+  final int? id;
+  final DateTime? openedDate;
+  final int? paoMonths;
+  final int? quantity;
+  final String? imageBase64; // ĐÃ CẬP NHẬT: Lưu trực tiếp ảnh đã nén dưới dạng chuỗi văn bản
+  final String? owner;
 
-  // --- CẤU HÌNH CẢNH BÁO RIÊNG CHO TỪNG MÓN ---
-  // Danh sách số ngày nhắc trước khi hết hạn (Mặc định là 30 ngày và 7 ngày)
+  // --- CẤU HÌNH CẢNH BÁO RIÊNG ---
   final List<int> alertDays;
 
-  // Hàm khởi tạo (Constructor): Dùng để tạo ra một vật phẩm mới
   HouseholdItem({
     this.id,
     required this.name,
@@ -26,32 +26,37 @@ class HouseholdItem {
     this.openedDate,
     this.paoMonths,
     this.quantity,
-    this.imagePath,
+    this.imageBase64,
     this.owner,
-    this.alertDays = const [30, 7], // Nếu người dùng không tự chỉnh, app dùng mặc định này
+    this.alertDays = const [30, 7],
   });
 
-  // 1. Tự động tính "Hạn sử dụng thực tế" (kết hợp HSD bao bì và HSD sau khi mở nắp)
+  // 1. Giải mã chuỗi imageBase64 thành dữ liệu ảnh thô (Uint8List) để Flutter vẽ lên màn hình
+  Uint8List? get imageBytes {
+    // Nếu không có ảnh thì trả về null (trống)
+    if (imageBase64 == null || imageBase64!.isEmpty) {
+      return null;
+    }
+    // Dịch ngược chuỗi văn bản về lại dữ liệu hình ảnh
+    return base64Decode(imageBase64!);
+  }
+
+  // 2. Tính hạn sử dụng thực tế (so sánh HSD bao bì và HSD từ lúc mở nắp)
   DateTime get effectiveExpiryDate {
-    // Nếu người dùng có nhập cả Ngày mở nắp VÀ Số tháng dùng sau khi mở
     if (openedDate != null && paoMonths != null) {
-      // Cộng thêm số tháng vào ngày mở nắp
       final paoExpiry = DateTime(
         openedDate!.year,
         openedDate!.month + paoMonths!,
         openedDate!.day,
       );
-      // So sánh: ngày nào tới trước thì lấy ngày đó để đảm bảo an toàn!
       return paoExpiry.isBefore(expiryDate) ? paoExpiry : expiryDate;
     }
-    // Nếu chưa mở nắp, dùng HSD in trên bao bì
     return expiryDate;
   }
 
-  // 2. Tự động tính số ngày còn lại cho đến hạn sử dụng thực tế
+  // 3. Tính số ngày còn lại
   int get daysRemaining {
     final now = DateTime.now();
-    // Đưa cả hai về 0 giờ 0 phút để đếm tròn ngày chính xác
     final today = DateTime(now.year, now.month, now.day);
     final target = DateTime(
       effectiveExpiryDate.year,
@@ -61,27 +66,24 @@ class HouseholdItem {
     return target.difference(today).inDays;
   }
 
-  // 3. Đóng gói dữ liệu thành Map (dạng Từ khóa : Giá trị) để lưu vào SQLite hoặc file JSON
+  // 4. Đóng gói dữ liệu để lưu vào SQLite hoặc xuất file JSON sao lưu
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
       'category': category,
       'expiryDate': expiryDate.toIso8601String(),
-      // Dấu ?. nghĩa là: chỉ chuyển sang chữ nếu openedDate không bị trống
       'openedDate': openedDate?.toIso8601String(),
       'paoMonths': paoMonths,
       'quantity': quantity,
-      'imagePath': imagePath,
+      'imageBase64': imageBase64, // Lưu thẳng chuỗi ảnh vào dữ liệu app
       'owner': owner,
-      // SQLite không lưu trực tiếp được List, nên ta ghép [30, 7] thành chuỗi "30,7"
       'alertDays': alertDays.join(','),
     };
   }
 
-  // 4. Mở gói dữ liệu từ SQLite / file JSON trở lại thành vật phẩm HouseholdItem
+  // 5. Mở gói dữ liệu từ SQLite / file JSON
   factory HouseholdItem.fromMap(Map<String, dynamic> map) {
-    // Tách chuỗi "30,7" ngược lại thành danh sách số [30, 7]
     final String rawAlerts = map['alertDays'] ?? '';
     final List<int> parsedAlerts = rawAlerts.isEmpty
         ? []
@@ -97,7 +99,7 @@ class HouseholdItem {
           : null,
       paoMonths: map['paoMonths'],
       quantity: map['quantity'],
-      imagePath: map['imagePath'],
+      imageBase64: map['imageBase64'],
       owner: map['owner'],
       alertDays: parsedAlerts,
     );
