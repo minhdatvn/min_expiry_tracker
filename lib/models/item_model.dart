@@ -1,5 +1,68 @@
-import 'dart:convert';    // Chuyển đổi giữa Ảnh <-> Chuỗi Base64
-import 'dart:typed_data'; // Kiểu dữ liệu mảng byte (Uint8List) để vẽ ảnh
+import 'dart:convert';
+import 'dart:typed_data';
+
+// --- MỚI: ĐỐI TƯỢNG MỐC CẢNH BÁO THÔNG MINH ---
+// Mỗi mốc không chỉ là 1 con số đơn thuần mà lưu đủ: Số + Đơn vị + Có thêm Lịch không + Mã sự kiện Lịch
+class AlertMilestone {
+  final int value;               // Con số (VD: 1, 3, 6, 30)
+  final String unit;             // 'days' hoặc 'hours'
+  final bool addToCalendar;      // True nếu người dùng tick ô "Thêm vào Lịch"
+  final String? calendarEventId; // Mã sự kiện Android trả về để sau này tự xóa/sửa
+
+  const AlertMilestone({
+    required this.value,
+    this.unit = 'days',
+    this.addToCalendar = false,
+    this.calendarEventId,
+  });
+
+  // Hiển thị chữ đẹp trên giao diện (VD: "6 hours before", "1 day before")
+  String get label {
+    if (unit == 'hours') {
+      return value == 1 ? '1 hour before' : '$value hours before';
+    }
+    return value == 1 ? '1 day before' : '$value days before';
+  }
+
+  // Quy đổi ra giờ để sắp xếp các mốc từ xa đến gần
+  int get totalHours => unit == 'hours' ? value : value * 24;
+
+  // Tạo bản sao có thay đổi một vài trường (kèm cờ xóa hẳn calendarEventId khi cần)
+  AlertMilestone copyWith({
+    int? value,
+    String? unit,
+    bool? addToCalendar,
+    String? calendarEventId,
+    bool clearCalendarEventId = false,
+  }) {
+    return AlertMilestone(
+      value: value ?? this.value,
+      unit: unit ?? this.unit,
+      addToCalendar: addToCalendar ?? this.addToCalendar,
+      calendarEventId: clearCalendarEventId
+          ? null
+          : (calendarEventId ?? this.calendarEventId),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'value': value,
+      'unit': unit,
+      'addToCalendar': addToCalendar,
+      'calendarEventId': calendarEventId,
+    };
+  }
+
+  factory AlertMilestone.fromMap(Map<String, dynamic> map) {
+    return AlertMilestone(
+      value: map['value'] ?? 1,
+      unit: map['unit'] ?? 'days',
+      addToCalendar: map['addToCalendar'] ?? false,
+      calendarEventId: map['calendarEventId'],
+    );
+  }
+}
 
 class HouseholdItem {
   // --- THÔNG TIN BẮT BUỘC ---
@@ -10,14 +73,16 @@ class HouseholdItem {
   // --- THÔNG TIN TÙY CHỌN ---
   final int? id;
   final DateTime? openedDate;
-  final int? paoValue;       // NÂNG CẤP: Con số PAO (VD: 6, 14, 24)
-  final String paoUnit;      // MỚI: Đơn vị PAO ('months', 'days', hoặc 'hours')
+  final int? paoValue;
+  final String paoUnit;        // 'months', 'days', hoặc 'hours'
   final int? quantity;
   final String? imageBase64;
-  final String? owner;
+  final String? owner;         // Chủ sở hữu (chọn từ danh sách & thống kê)
+  final String? location;      // MỚI: Vị trí cất giữ (VD: Tủ lạnh, Tủ thuốc)
+  final String? notes;         // MỚI: Ghi chú tự do nhiều dòng
 
-  // --- CẤU HÌNH CẢNH BÁO RIÊNG ---
-  final List<int> alertDays;
+  // --- CẤU HÌNH CẢNH BÁO RIÊNG (ĐÃ NÂNG CẤP) ---
+  final List<AlertMilestone> alerts;
 
   HouseholdItem({
     this.id,
@@ -26,28 +91,65 @@ class HouseholdItem {
     required this.expiryDate,
     this.openedDate,
     this.paoValue,
-    this.paoUnit = 'months', // Mặc định vẫn là 'months' để tương thích dữ liệu cũ
+    this.paoUnit = 'months',
     this.quantity,
     this.imageBase64,
     this.owner,
-    this.alertDays = const [30, 7],
+    this.location,
+    this.notes,
+    this.alerts = const [
+      AlertMilestone(value: 30, unit: 'days'),
+      AlertMilestone(value: 7, unit: 'days'),
+    ],
   });
 
-  // 1. Giải mã chuỗi imageBase64 thành dữ liệu ảnh thô để vẽ lên màn hình
+  // Giữ lại getter tương thích cho phần tô màu thẻ theo số ngày
+  List<int> get alertDays => alerts
+      .where((a) => a.unit == 'days')
+      .map((a) => a.value)
+      .toList();
+
+  // Tạo bản sao vật phẩm (rất tiện khi cập nhật lại ID hoặc mã sự kiện Lịch)
+  HouseholdItem copyWith({
+    int? id,
+    String? name,
+    String? category,
+    DateTime? expiryDate,
+    DateTime? openedDate,
+    int? paoValue,
+    String? paoUnit,
+    int? quantity,
+    String? imageBase64,
+    String? owner,
+    String? location,
+    String? notes,
+    List<AlertMilestone>? alerts,
+  }) {
+    return HouseholdItem(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      expiryDate: expiryDate ?? this.expiryDate,
+      openedDate: openedDate ?? this.openedDate,
+      paoValue: paoValue ?? this.paoValue,
+      paoUnit: paoUnit ?? this.paoUnit,
+      quantity: quantity ?? this.quantity,
+      imageBase64: imageBase64 ?? this.imageBase64,
+      owner: owner ?? this.owner,
+      location: location ?? this.location,
+      notes: notes ?? this.notes,
+      alerts: alerts ?? this.alerts,
+    );
+  }
+
   Uint8List? get imageBytes {
-    if (imageBase64 == null || imageBase64!.isEmpty) {
-      return null;
-    }
+    if (imageBase64 == null || imageBase64!.isEmpty) return null;
     return base64Decode(imageBase64!);
   }
 
-  // Kiểm tra nhanh món này có đang kích hoạt theo dõi PAO hợp lệ không
   bool get hasPao => openedDate != null && paoValue != null && paoValue! > 0;
-
-  // Kiểm tra nhanh món này có đang tính PAO theo GIỜ không
   bool get isHourlyPao => hasPao && paoUnit == 'hours';
 
-  // Tạo nhãn PAO ngắn gọn để hiển thị lên thẻ (VD: "PAO 6M", "PAO 3D", "PAO 4H")
   String get paoShortLabel {
     if (!hasPao) return '';
     switch (paoUnit) {
@@ -61,12 +163,10 @@ class HouseholdItem {
     }
   }
 
-  // 2. Tính hạn sử dụng thực tế (hỗ trợ cả Tháng, Ngày và Giờ)
+  // Tính hạn sử dụng thực tế (Tháng / Ngày / Giờ)
   DateTime get effectiveExpiryDate {
     if (hasPao) {
       final DateTime paoExpiry;
-
-      // Dùng switch để cộng thời gian đúng theo đơn vị đã chọn
       switch (paoUnit) {
         case 'hours':
           paoExpiry = openedDate!.add(Duration(hours: paoValue!));
@@ -86,8 +186,6 @@ class HouseholdItem {
           break;
       }
 
-      // So sánh với mốc cuối ngày (23:59) của ngày hết hạn trên bao bì
-      // để món mở ngay trong ngày cuối vẫn đếm đúng giờ PAO
       final endOfExpiryDay = DateTime(
         expiryDate.year,
         expiryDate.month,
@@ -104,10 +202,19 @@ class HouseholdItem {
     return expiryDate;
   }
 
-  // 3. Khoảng thời gian còn lại chính xác tới từng giờ/phút (dùng cho đồ theo giờ & sắp xếp)
+  // Tính chính xác thời điểm nhắc nhở (dùng chung cho cả Thông báo app & Lịch điện thoại)
+  DateTime calculateAlertTime(AlertMilestone alert) {
+    final expiry = effectiveExpiryDate;
+    if (alert.unit == 'hours') {
+      return expiry.subtract(Duration(hours: alert.value));
+    }
+    // Với mốc theo ngày -> nhắc vào lúc 9:00 sáng của ngày đó
+    final alertDay = expiry.subtract(Duration(days: alert.value));
+    return DateTime(alertDay.year, alertDay.month, alertDay.day, 9, 0);
+  }
+
   Duration get timeRemaining => effectiveExpiryDate.difference(DateTime.now());
 
-  // 4. Tính số ngày còn lại (dùng cho đồ theo Ngày/Tháng như trước)
   int get daysRemaining {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -119,7 +226,7 @@ class HouseholdItem {
     return target.difference(today).inDays;
   }
 
-  // 5. Đóng gói dữ liệu để lưu vào SQLite hoặc xuất file JSON sao lưu
+  // Đóng gói dữ liệu để lưu vào SQLite hoặc xuất JSON sao lưu
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -127,23 +234,26 @@ class HouseholdItem {
       'category': category,
       'expiryDate': expiryDate.toIso8601String(),
       'openedDate': openedDate?.toIso8601String(),
-      // MẸO TƯƠNG THÍCH NGƯỢC: Giữ nguyên tên khóa 'paoMonths' trong SQLite/JSON
-      // để không phải xóa bảng cũ và vẫn mở được file sao lưu từ phiên bản v1.0
-      'paoMonths': paoValue,
+      'paoValue': paoValue,   // Đổi tên cột chuẩn theo ý nghĩa mới
       'paoUnit': paoUnit,
       'quantity': quantity,
       'imageBase64': imageBase64,
       'owner': owner,
-      'alertDays': alertDays.join(','),
+      'location': location,
+      'notes': notes,
+      // Lưu trực tiếp danh sách mốc cảnh báo dưới dạng chuỗi JSON
+      'alerts': jsonEncode(alerts.map((a) => a.toMap()).toList()),
     };
   }
 
-  // 6. Mở gói dữ liệu từ SQLite / file JSON
+  // Mở gói dữ liệu thẳng từ định dạng JSON mới (không cần rẽ nhánh đọc bản cũ)
   factory HouseholdItem.fromMap(Map<String, dynamic> map) {
-    final String rawAlerts = map['alertDays'] ?? '';
-    final List<int> parsedAlerts = rawAlerts.isEmpty
+    final String rawAlerts = (map['alerts'] ?? '').toString().trim();
+    final List<AlertMilestone> parsedAlerts = rawAlerts.isEmpty
         ? []
-        : rawAlerts.split(',').map((e) => int.parse(e.trim())).toList();
+        : (jsonDecode(rawAlerts) as List<dynamic>)
+            .map((e) => AlertMilestone.fromMap(Map<String, dynamic>.from(e)))
+            .toList();
 
     return HouseholdItem(
       id: map['id'],
@@ -153,13 +263,14 @@ class HouseholdItem {
       openedDate: map['openedDate'] != null
           ? DateTime.parse(map['openedDate'])
           : null,
-      paoValue: map['paoMonths'],
-      // Nếu đọc file backup v1.0 chưa có 'paoUnit', toán tử '??' sẽ tự điền 'months'
+      paoValue: map['paoValue'],
       paoUnit: map['paoUnit'] ?? 'months',
       quantity: map['quantity'],
       imageBase64: map['imageBase64'],
       owner: map['owner'],
-      alertDays: parsedAlerts,
+      location: map['location'],
+      notes: map['notes'],
+      alerts: parsedAlerts,
     );
   }
 }

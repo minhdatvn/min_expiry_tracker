@@ -2,22 +2,21 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 import '../models/item_model.dart';
+import 'log_service.dart';
 
 class NotifyService {
-  // Áp dụng mẫu Singleton: Cả ứng dụng chỉ dùng duy nhất 1 bộ quản lý thông báo
   static final NotifyService instance = NotifyService._init();
   NotifyService._init();
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  // Định nghĩa "kênh thông báo" chuẩn của Android
   static const AndroidNotificationDetails _androidDetails =
       AndroidNotificationDetails(
-    'expiry_alerts_channel',        // Mã kênh duy nhất
-    'Expiry Reminders',             // Tên kênh hiển thị trong Cài đặt Android
+    'expiry_alerts_channel',
+    'Expiry Reminders',
     channelDescription: 'Notifications before your household items expire',
-    importance: Importance.high,    // Hiện banner nổi trên đầu màn hình
+    importance: Importance.high,
     priority: Priority.high,
   );
 
@@ -25,24 +24,22 @@ class NotifyService {
     android: _androidDetails,
   );
 
-  // 1. KHỞI TẠO HỆ THỐNG THÔNG BÁO (Chạy 1 lần duy nhất trong main.dart khi mở app)
+  // 1. Khởi tạo hệ thống thông báo (chạy 1 lần trong main.dart)
   Future<void> init() async {
     tz_data.initializeTimeZones();
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
 
-    // Bản v20+ bắt buộc ghi rõ tên tham số "settings:"
     await _plugin.initialize(settings: initSettings);
 
-    // Tự động hiện hộp thoại xin quyền gửi thông báo trên Android 13 trở lên
     await _plugin
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
   }
 
-  // 2. GỬI THỬ 1 THÔNG BÁO NGAY LẬP TỨC (Dùng cho nút chiếc chuông Test trên AppBar)
+  // 2. Gửi thử 1 thông báo ngay lập tức (có thể gọi từ màn hình Log/Settings)
   Future<void> showTestNotification() async {
     await _plugin.show(
       id: 0,
@@ -50,12 +47,15 @@ class NotifyService {
       body: 'Offline expiry reminders are working properly on your phone.',
       notificationDetails: _notificationDetails,
     );
+    await LogService.instance.addLog(
+      'NOTIFY',
+      'Sent test notification.',
+    );
   }
 
-  // 3. HỦY TOÀN BỘ LỊCH NHẮC CŨ CỦA 1 VẬT PHẨM (Dùng khi Xóa hoặc trước khi Cập nhật)
+  // 3. Hủy toàn bộ lịch nhắc cũ của 1 vật phẩm
   Future<void> cancelItemAlerts(int itemId) async {
     final pending = await _plugin.pendingNotificationRequests();
-
     for (final request in pending) {
       if (request.id ~/ 100 == itemId) {
         await _plugin.cancel(id: request.id);
@@ -63,7 +63,7 @@ class NotifyService {
     }
   }
 
-  // 4. LÊN LỊCH NHẮC NHỞ THEO ĐÚNG CÁC MỐC RIÊNG (alertDays) CỦA VẬT PHẨM
+  // 4. NÂNG CẤP: Lên lịch nhắc nhở theo danh sách AlertMilestone (hỗ trợ cả Giờ & Ngày)
   Future<void> scheduleItemAlerts(HouseholdItem item, {int? overrideId}) async {
     final int? itemId = overrideId ?? item.id;
     if (itemId == null) return;
@@ -71,28 +71,30 @@ class NotifyService {
     await cancelItemAlerts(itemId);
 
     final now = DateTime.now();
-    final expiry = item.effectiveExpiryDate;
+    int scheduledCount = 0;
 
-    for (int i = 0; i < item.alertDays.length; i++) {
-      final int daysBefore = item.alertDays[i];
-      final alertDay = expiry.subtract(Duration(days: daysBefore));
+    for (int i = 0; i < item.alerts.length; i++) {
+      final alert = item.alerts[i];
+      // Dùng công thức tính thời điểm dùng chung từ item_model.dart
+      final scheduledLocalTime = item.calculateAlertTime(alert);
 
-      final scheduledLocalTime = DateTime(
-        alertDay.year,
-        alertDay.month,
-        alertDay.day,
-        9, // 9 giờ sáng
-        0, // 0 phút
-      );
-
+      // Bỏ qua các mốc đã trôi qua trong quá khứ
       if (!scheduledLocalTime.isAfter(now)) continue;
 
       final tzScheduledDate = tz.TZDateTime.from(scheduledLocalTime, tz.local);
       final notificationId = itemId * 100 + i;
 
-      final String bodyText = daysBefore == 1
-          ? '${item.name} expires tomorrow!'
-          : '${item.name} expires in $daysBefore days.';
+      // Tạo câu thông báo tự nhiên tùy theo đơn vị Giờ hay Ngày
+      final String bodyText;
+      if (alert.unit == 'hours') {
+        bodyText = alert.value == 1
+            ? '${item.name} expires in 1 hour!'
+            : '${item.name} expires in ${alert.value} hours!';
+      } else {
+        bodyText = alert.value == 1
+            ? '${item.name} expires tomorrow!'
+            : '${item.name} expires in ${alert.value} days.';
+      }
 
       await _plugin.zonedSchedule(
         id: notificationId,
@@ -102,10 +104,18 @@ class NotifyService {
         notificationDetails: _notificationDetails,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       );
+      scheduledCount++;
+    }
+
+    if (scheduledCount > 0) {
+      await LogService.instance.addLog(
+        'NOTIFY',
+        'Scheduled $scheduledCount reminder(s) for "${item.name}".',
+      );
     }
   }
 
-  // 5. HỦY TOÀN BỘ THÔNG BÁO ĐANG CHỜ TRÊN MÁY (Dùng trước khi khôi phục bản sao lưu)
+  // 5. Hủy toàn bộ thông báo đang chờ (dùng trước khi Restore)
   Future<void> cancelAllAlerts() async {
     await _plugin.cancelAll();
   }

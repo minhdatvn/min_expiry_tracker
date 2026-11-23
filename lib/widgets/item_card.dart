@@ -12,21 +12,19 @@ class ItemCard extends StatelessWidget {
     this.onTap,
   });
 
-  // 1. Chọn màu sắc cảnh báo (hỗ trợ cả đồ theo Giờ và đồ theo Ngày/Tháng)
+  // 1. Chọn màu sắc cảnh báo
   Color _getStatusColor() {
-    // Trường hợp 1: Đồ ngắn hạn tính PAO theo GIỜ
     if (item.isHourlyPao) {
       final remaining = item.timeRemaining;
       if (remaining.isNegative || remaining.inHours < 3) {
-        return Colors.red.shade700;    // Quá hạn hoặc còn dưới 3 giờ -> Đỏ
+        return Colors.red.shade700;
       }
       if (remaining.inHours < 12) {
-        return Colors.orange.shade800; // Còn dưới 12 giờ -> Cam
+        return Colors.orange.shade800;
       }
-      return Colors.green.shade700;    // Còn từ 12 giờ trở lên -> Xanh lá
+      return Colors.green.shade700;
     }
 
-    // Trường hợp 2: Đồ theo NGÀY / THÁNG (giữ nguyên logic cũ)
     final days = item.daysRemaining;
     if (days <= 0) return Colors.red.shade700;
 
@@ -43,9 +41,8 @@ class ItemCard extends StatelessWidget {
     return Colors.green.shade700;
   }
 
-  // 2. Tạo dòng chữ đếm ngược gọn gàng ở nhãn góc phải
+  // 2. Nhãn đếm ngược góc phải
   String _getStatusText() {
-    // Nếu là đồ tính theo GIỜ -> hiển thị chính xác theo giờ/phút
     if (item.isHourlyPao) {
       final remaining = item.timeRemaining;
       final absMinutes = remaining.inMinutes.abs();
@@ -60,14 +57,13 @@ class ItemCard extends StatelessWidget {
       }
     }
 
-    // Đồ theo NGÀY / THÁNG
     final days = item.daysRemaining;
     if (days < 0) return '${days.abs()}d ago';
     if (days == 0) return 'Today';
     return '${days}d left';
   }
 
-  // 3. Chọn Icon mặc định theo Loại sản phẩm
+  // 3. Icon mặc định theo danh mục
   IconData _getCategoryIcon() {
     switch (item.category) {
       case 'Medicine':
@@ -84,11 +80,12 @@ class ItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = _getStatusColor();
-
-    // Nếu tính theo giờ -> hiện thêm HH:mm (VD: Nov 22, 23:30)
     final formattedDate = item.isHourlyPao
         ? DateFormat('MMM dd, HH:mm').format(item.effectiveExpiryDate)
         : DateFormat('MMM dd, yyyy').format(item.effectiveExpiryDate);
+
+    // Kiểm tra xem vật phẩm này có mốc nào đang đồng bộ với Lịch điện thoại không
+    final hasCalendarSync = item.alerts.any((a) => a.addToCalendar);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -104,7 +101,7 @@ class ItemCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // --- CỘT TRÁI: ẢNH CHỤP HOẶC ICON MẶC ĐỊNH ---
+              // --- CỘT TRÁI: ẢNH HOẶC ICON ---
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
                 child: item.imageBytes != null
@@ -118,12 +115,16 @@ class ItemCard extends StatelessWidget {
                         width: 56,
                         height: 56,
                         color: statusColor.withAlpha(25),
-                        child: Icon(_getCategoryIcon(), color: statusColor, size: 28),
+                        child: Icon(
+                          _getCategoryIcon(),
+                          color: statusColor,
+                          size: 28,
+                        ),
                       ),
               ),
               const SizedBox(width: 12),
 
-              // --- CỘT GIỮA: TÊN, PHÂN LOẠI, NGÀY/GIỜ HẾT HẠN ---
+              // --- CỘT GIỮA: TÊN, PHỤ ĐỀ, VỊ TRÍ, NGÀY HẾT HẠN, GHI CHÚ ---
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,18 +138,25 @@ class ItemCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
+
+                    // Loại • Số lượng • Chủ sở hữu • Vị trí
                     Text(
                       [
                         item.category,
                         if (item.quantity != null) 'Qty: ${item.quantity}',
-                        if (item.owner != null && item.owner!.isNotEmpty) item.owner!,
+                        if (item.owner != null && item.owner!.isNotEmpty)
+                          item.owner!,
+                        if (item.location != null && item.location!.isNotEmpty)
+                          item.location!,
                       ].join(' • '),
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
+
+                    // Ngày hết hạn + nhãn PAO + icon đồng bộ Lịch
                     Row(
                       children: [
                         Icon(
@@ -159,9 +167,15 @@ class ItemCard extends StatelessWidget {
                           color: Colors.grey.shade600,
                         ),
                         const SizedBox(width: 4),
-                        Text(
-                          'Exp: $formattedDate',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        Flexible(
+                          child: Text(
+                            'Exp: $formattedDate',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         if (item.hasPao) ...[
                           const SizedBox(width: 6),
@@ -175,7 +189,7 @@ class ItemCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              item.paoShortLabel, // Tự hiện PAO 6M, PAO 3D hoặc PAO 4H
+                              item.paoShortLabel,
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
@@ -184,8 +198,43 @@ class ItemCard extends StatelessWidget {
                             ),
                           ),
                         ],
+                        if (hasCalendarSync) ...[
+                          const SizedBox(width: 5),
+                          Icon(
+                            Icons.calendar_month,
+                            size: 14,
+                            color: Colors.purple.shade600,
+                          ),
+                        ],
                       ],
                     ),
+
+                    // MỚI: Hiển thị trích đoạn 1 dòng nếu món đồ có Ghi chú
+                    if (item.notes != null && item.notes!.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.notes_outlined,
+                            size: 13,
+                            color: Colors.grey.shade500,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              item.notes!,
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.grey.shade600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),

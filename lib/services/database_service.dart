@@ -20,13 +20,12 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 2,              // Tăng từ 1 lên 2 để kích hoạt onUpgrade trên máy ảo
-      onCreate: _createDB,     // Chạy khi cài app mới hoàn toàn
-      onUpgrade: _upgradeDB,   // Chạy tự động khi nâng cấp từ bản cũ (v1 -> v2)
+      version: 1, // Giữ version 1 sạch sẽ trong giai đoạn đang phát triển
+      onCreate: _createDB,
     );
   }
 
-  // Tạo bảng mới (dành cho máy cài lần đầu) -> Đã có sẵn cột paoUnit
+  // Tạo mới 2 bảng hoàn chỉnh ngay từ đầu: items và app_logs
   Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE items (
@@ -35,23 +34,25 @@ class DatabaseService {
         category TEXT NOT NULL,
         expiryDate TEXT NOT NULL,
         openedDate TEXT,
-        paoMonths INTEGER,
+        paoValue INTEGER,
         paoUnit TEXT DEFAULT 'months',
         quantity INTEGER,
         imageBase64 TEXT,
         owner TEXT,
-        alertDays TEXT
+        location TEXT,
+        notes TEXT,
+        alerts TEXT
       )
     ''');
-  }
 
-  // Tự động thêm cột paoUnit nếu máy đã có sẵn database v1 (khỏi phải gỡ app)
-  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      await db.execute(
-        "ALTER TABLE items ADD COLUMN paoUnit TEXT DEFAULT 'months'",
-      );
-    }
+    await db.execute('''
+      CREATE TABLE app_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT NOT NULL,
+        action TEXT NOT NULL,
+        message TEXT NOT NULL
+      )
+    ''');
   }
 
   // 1. CREATE
@@ -89,9 +90,27 @@ class DatabaseService {
     );
   }
 
-  // 5. Xóa toàn bộ dữ liệu (dùng trước khi Restore)
+  // 5. Xóa toàn bộ danh sách vật phẩm (dùng trước khi Restore)
   Future<void> clearAllItems() async {
     final db = await instance.database;
     await db.delete('items');
+  }
+
+  // 6. Lấy danh sách Chủ sở hữu đã dùng (không trùng lặp) để chọn nhanh & lọc
+  Future<List<String>> getDistinctOwners() async {
+    final db = await instance.database;
+    final rows = await db.rawQuery(
+      "SELECT DISTINCT owner FROM items WHERE owner IS NOT NULL AND TRIM(owner) != '' ORDER BY owner ASC",
+    );
+    return rows.map((r) => (r['owner'] as String).trim()).toList();
+  }
+
+  // 7. Lấy danh sách Vị trí đã dùng (không trùng lặp) để chọn nhanh
+  Future<List<String>> getDistinctLocations() async {
+    final db = await instance.database;
+    final rows = await db.rawQuery(
+      "SELECT DISTINCT location FROM items WHERE location IS NOT NULL AND TRIM(location) != '' ORDER BY location ASC",
+    );
+    return rows.map((r) => (r['location'] as String).trim()).toList();
   }
 }
