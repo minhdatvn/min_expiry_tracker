@@ -380,7 +380,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get logCalendarNoWritable =>
-      'Không có Lịch khả dụng để ghi (hãy đăng nhập tài khoản Google).';
+      'Không tìm thấy Lịch khả dụng để ghi (cả Lịch mặc định và Google Calendar đều không khả dụng).';
 
   @override
   String logCalendarSkippedPast(String alert, String name) {

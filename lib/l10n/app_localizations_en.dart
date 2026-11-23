@@ -380,7 +380,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logCalendarNoWritable =>
-      'No writable calendar available (sign in to a Google account on device).';
+      'No writable calendar found (Device Calendar and Google Calendar are unavailable).';
 
   @override
   String logCalendarSkippedPast(String alert, String name) {

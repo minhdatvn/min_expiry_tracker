@@ -78,19 +78,20 @@ class BackupService {
         .map((e) => HouseholdItem.fromMap(Map<String, dynamic>.from(e)))
         .toList();
 
-    await DatabaseService.instance.clearAllItems();
-    await NotifyService.instance.cancelAllAlerts();
+    // Ghi đè toàn bộ trong 1 transaction: nhanh hơn và an toàn tuyệt đối
+    final savedItems =
+        await DatabaseService.instance.replaceAllItems(restoredItems);
 
-    for (final item in restoredItems) {
-      final newId = await DatabaseService.instance.insertItem(item);
-      await NotifyService.instance.scheduleItemAlerts(item, overrideId: newId);
+    await NotifyService.instance.cancelAllAlerts();
+    for (final item in savedItems) {
+      await NotifyService.instance.scheduleItemAlerts(item);
     }
 
     await LogService.instance.addLog(
       'BACKUP',
-      encodeLogMessage('logBackupRestored', {'count': restoredItems.length}),
+      encodeLogMessage('logBackupRestored', {'count': savedItems.length}),
     );
 
-    return restoredItems.length;
+    return savedItems.length;
   }
 }

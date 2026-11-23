@@ -113,4 +113,19 @@ class DatabaseService {
     );
     return rows.map((r) => (r['location'] as String).trim()).toList();
   }
+
+  // 8. Thay thế toàn bộ vật phẩm trong 1 giao dịch nguyên tử (dùng khi Restore)
+  Future<List<HouseholdItem>> replaceAllItems(List<HouseholdItem> items) async {
+    final db = await instance.database;
+    return await db.transaction((txn) async {
+      await txn.delete('items');
+      final List<HouseholdItem> savedItems = [];
+      for (final item in items) {
+        final data = item.toMap()..remove('id');
+        final newId = await txn.insert('items', data);
+        savedItems.add(item.copyWith(id: newId));
+      }
+      return savedItems;
+    });
+  }
 }

@@ -129,7 +129,7 @@
   "logRemindersScheduled": "Đã đặt {count} nhắc nhở cho \"{name}\".",
   "logCalendarDenied": "Người dùng đã từ chối quyền truy cập Lịch.",
   "logCalendarNoAccount": "Không tìm thấy tài khoản Lịch trên thiết bị.",
-  "logCalendarNoWritable": "Không có Lịch khả dụng để ghi (hãy đăng nhập tài khoản Google).",
+  "logCalendarNoWritable": "Không tìm thấy Lịch khả dụng để ghi (cả Lịch mặc định và Google Calendar đều không khả dụng).",
   "logCalendarSkippedPast": "Đã bỏ qua nhắc nhở Lịch quá hạn ({alert}) cho \"{name}\".",
   "logCalendarAdded": "Đã thêm sự kiện Lịch cho \"{name}\" ({alert}).",
   "logCalendarFailed": "Không thể thêm sự kiện Lịch cho \"{name}\".",

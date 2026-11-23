@@ -120,21 +120,27 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   // --- 1. CHỌN HOẶC CHỤP ẢNH VÀ NÉN BASE64 ---
   Future<void> _pickImage(ImageSource source) async {
-    final picker = ImagePicker();
-    final XFile? pickedFile = await picker.pickImage(
-      source: source,
-      maxWidth: 600,
-      maxHeight: 600,
-      imageQuality: 70,
-    );
+    try {
+      final picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 70,
+      );
 
-    if (pickedFile == null) return;
+      if (pickedFile == null || !mounted) return;
 
-    final Uint8List bytes = await pickedFile.readAsBytes();
-    setState(() {
-      _imageBytes = bytes;
-      _imageBase64 = base64Encode(bytes);
-    });
+      final Uint8List bytes = await pickedFile.readAsBytes();
+      if (!mounted) return;
+
+      setState(() {
+        _imageBytes = bytes;
+        _imageBase64 = base64Encode(bytes);
+      });
+    } catch (_) {
+      // Nếu người dùng từ chối quyền Camera/Thư viện -> bỏ qua êm ái, không văng app
+    }
   }
 
   void _showImageSourceSheet() {
@@ -241,16 +247,21 @@ class _AddEditScreenState extends State<AddEditScreen> {
     required bool isOwner,
   }) async {
     final l10n = AppLocalizations.of(context)!;
-    final controller = TextEditingController();
+    // Dùng biến String đơn giản thay cho TextEditingController -> không bao giờ rò rỉ RAM
+    String inputText = '';
 
     final String? newValue = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
         content: TextField(
-          controller: controller,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
+          onChanged: (value) => inputText = value,
+          onSubmitted: (value) {
+            final text = value.trim();
+            if (text.isNotEmpty) Navigator.pop(context, text);
+          },
           decoration: InputDecoration(
             hintText: hintText,
             border: const OutlineInputBorder(),
@@ -263,7 +274,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
           ),
           FilledButton(
             onPressed: () {
-              final text = controller.text.trim();
+              final text = inputText.trim();
               if (text.isNotEmpty) {
                 Navigator.pop(context, text);
               }

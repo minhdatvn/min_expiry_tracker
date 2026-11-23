@@ -142,9 +142,22 @@ class HouseholdItem {
     );
   }
 
+  // Bộ nhớ đệm giúp chỉ giải mã ảnh Base64 đúng 1 lần cho mỗi vật phẩm
+  Uint8List? _cachedImageBytes;
+  bool _hasDecodedImage = false;
+
   Uint8List? get imageBytes {
-    if (imageBase64 == null || imageBase64!.isEmpty) return null;
-    return base64Decode(imageBase64!);
+    if (!_hasDecodedImage) {
+      _hasDecodedImage = true;
+      if (imageBase64 != null && imageBase64!.isNotEmpty) {
+        try {
+          _cachedImageBytes = base64Decode(imageBase64!);
+        } catch (_) {
+          _cachedImageBytes = null;
+        }
+      }
+    }
+    return _cachedImageBytes;
   }
 
   bool get hasPao => openedDate != null && paoValue != null && paoValue! > 0;
@@ -246,30 +259,37 @@ class HouseholdItem {
     };
   }
 
-  // Mở gói dữ liệu thẳng từ định dạng JSON mới (không cần rẽ nhánh đọc bản cũ)
+  // Mở gói dữ liệu an toàn: 1 dòng lỗi định dạng không làm văng toàn bộ danh sách
   factory HouseholdItem.fromMap(Map<String, dynamic> map) {
     final String rawAlerts = (map['alerts'] ?? '').toString().trim();
-    final List<AlertMilestone> parsedAlerts = rawAlerts.isEmpty
-        ? []
-        : (jsonDecode(rawAlerts) as List<dynamic>)
+    List<AlertMilestone> parsedAlerts = [];
+    if (rawAlerts.isNotEmpty) {
+      try {
+        parsedAlerts = (jsonDecode(rawAlerts) as List<dynamic>)
             .map((e) => AlertMilestone.fromMap(Map<String, dynamic>.from(e)))
             .toList();
+      } catch (_) {
+        parsedAlerts = [];
+      }
+    }
 
     return HouseholdItem(
-      id: map['id'],
-      name: map['name'],
-      category: map['category'],
-      expiryDate: DateTime.parse(map['expiryDate']),
+      id: (map['id'] as num?)?.toInt(),
+      name: (map['name'] ?? '').toString(),
+      category: (map['category'] ?? 'Other').toString(),
+      expiryDate:
+          DateTime.tryParse((map['expiryDate'] ?? '').toString()) ??
+          DateTime.now(),
       openedDate: map['openedDate'] != null
-          ? DateTime.parse(map['openedDate'])
+          ? DateTime.tryParse(map['openedDate'].toString())
           : null,
-      paoValue: map['paoValue'],
-      paoUnit: map['paoUnit'] ?? 'months',
-      quantity: map['quantity'],
-      imageBase64: map['imageBase64'],
-      owner: map['owner'],
-      location: map['location'],
-      notes: map['notes'],
+      paoValue: (map['paoValue'] as num?)?.toInt(),
+      paoUnit: (map['paoUnit'] ?? 'months').toString(),
+      quantity: (map['quantity'] as num?)?.toInt(),
+      imageBase64: map['imageBase64'] as String?,
+      owner: map['owner'] as String?,
+      location: map['location'] as String?,
+      notes: map['notes'] as String?,
       alerts: parsedAlerts,
     );
   }

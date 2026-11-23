@@ -105,20 +105,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadItems() async {
-    final items = await DatabaseService.instance.getAllItems();
-    if (!mounted) return;
-    setState(() {
-      _items = items;
-      _isLoading = false;
-      if (_selectedOwner != 'All' &&
-          !_ownerFilterOptions.contains(_selectedOwner)) {
-        _selectedOwner = 'All';
-      }
-      if (_selectedLocation != 'All' &&
-          !_locationFilterOptions.contains(_selectedLocation)) {
-        _selectedLocation = 'All';
-      }
-    });
+    try {
+      final items = await DatabaseService.instance.getAllItems();
+      if (!mounted) return;
+      setState(() {
+        _items = items;
+        _isLoading = false;
+        if (_selectedOwner != 'All' &&
+            !_ownerFilterOptions.contains(_selectedOwner)) {
+          _selectedOwner = 'All';
+        }
+        if (_selectedLocation != 'All' &&
+            !_locationFilterOptions.contains(_selectedLocation)) {
+          _selectedLocation = 'All';
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+    }
   }
 
   List<HouseholdItem> get _filteredItems {
@@ -300,6 +305,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // MỚI: Hiển thị thanh cảnh báo đỏ rõ ràng nếu không thể ghi vào Lịch (kèm nút mở nhanh Nhật ký)
+  void _showCalendarError(String errorKey, String itemName) {
+    final l10n = AppLocalizations.of(context)!;
+    final errorMessage = localizeLogMessage(
+      l10n,
+      encodeLogMessage(errorKey, {'name': itemName}),
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(errorMessage),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: l10n.appLogs,
+          textColor: Colors.white,
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const LogScreen()),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _openAddEditScreen({HouseholdItem? existingItem}) async {
     final result = await Navigator.push(
       context,
@@ -323,9 +355,10 @@ class _HomeScreenState extends State<HomeScreen> {
         final newId = await DatabaseService.instance.insertItem(result);
         var savedItem = result.copyWith(id: newId);
 
-        final syncedAlerts = await CalendarService.instance
+        // Nhận gói CalendarSyncResult thay vì chỉ nhận mỗi danh sách mốc
+        final syncResult = await CalendarService.instance
             .syncItemCalendarEvents(savedItem);
-        savedItem = savedItem.copyWith(alerts: syncedAlerts);
+        savedItem = savedItem.copyWith(alerts: syncResult.alerts);
         await DatabaseService.instance.updateItem(savedItem);
 
         await NotifyService.instance.scheduleItemAlerts(savedItem);
@@ -336,13 +369,18 @@ class _HomeScreenState extends State<HomeScreen> {
             'category': savedItem.category,
           }),
         );
+
+        // Nếu đồng bộ Lịch gặp lỗi -> hiện thông báo đỏ ngay cho người dùng biết
+        if (syncResult.hasError && mounted) {
+          _showCalendarError(syncResult.errorKey!, savedItem.name);
+        }
       } else {
-        final syncedAlerts = await CalendarService.instance
+        final syncResult = await CalendarService.instance
             .syncItemCalendarEvents(
               result,
               previousAlerts: existingItem.alerts,
             );
-        final updatedItem = result.copyWith(alerts: syncedAlerts);
+        final updatedItem = result.copyWith(alerts: syncResult.alerts);
 
         await DatabaseService.instance.updateItem(updatedItem);
         await NotifyService.instance.scheduleItemAlerts(updatedItem);
@@ -350,6 +388,10 @@ class _HomeScreenState extends State<HomeScreen> {
           'UPDATE',
           encodeLogMessage('logItemUpdated', {'name': updatedItem.name}),
         );
+
+        if (syncResult.hasError && mounted) {
+          _showCalendarError(syncResult.errorKey!, updatedItem.name);
+        }
       }
     }
 

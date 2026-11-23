@@ -1,11 +1,10 @@
 import 'database_service.dart';
 
-// Khuôn mẫu cho 1 dòng Nhật ký (Log) của ứng dụng
 class AppLog {
   final int? id;
   final DateTime timestamp;
-  final String action;  // VD: ADD, UPDATE, DELETE, NOTIFY, CALENDAR, BACKUP, ERROR
-  final String message; // Nội dung chi tiết sự kiện
+  final String action;
+  final String message;
 
   AppLog({
     this.id,
@@ -37,7 +36,9 @@ class LogService {
   static final LogService instance = LogService._init();
   LogService._init();
 
-  // Ghi thêm 1 dòng nhật ký vào bảng app_logs trong SQLite
+  // Giới hạn tối đa 200 bản ghi trong SQLite để file database không phình to theo năm tháng
+  static const int _maxStoredLogs = 200;
+
   Future<void> addLog(String action, String message) async {
     try {
       final db = await DatabaseService.instance.database;
@@ -46,23 +47,29 @@ class LogService {
         'action': action,
         'message': message,
       });
+
+      // Tự động xóa các dòng log cũ vượt quá giới hạn 200 dòng mới nhất
+      await db.rawDelete('''
+        DELETE FROM app_logs
+        WHERE id NOT IN (
+          SELECT id FROM app_logs ORDER BY id DESC LIMIT ?
+        )
+      ''', [_maxStoredLogs]);
     } catch (_) {
-      // Đảm bảo lỗi ghi log (nếu có) không bao giờ làm sập chức năng chính của app
+      // Đảm bảo lỗi ghi log không bao giờ làm gián đoạn chức năng chính
     }
   }
 
-  // Lấy danh sách log mới nhất để hiển thị lên màn hình Log
   Future<List<AppLog>> getLogs({int limit = 150}) async {
     final db = await DatabaseService.instance.database;
     final rows = await db.query(
       'app_logs',
-      orderBy: 'id DESC', // Mới nhất xếp lên trên cùng
+      orderBy: 'id DESC',
       limit: limit,
     );
     return rows.map((row) => AppLog.fromMap(row)).toList();
   }
 
-  // Dọn sạch toàn bộ nhật ký khi người dùng bấm nút Xóa Log
   Future<void> clearLogs() async {
     final db = await DatabaseService.instance.database;
     await db.delete('app_logs');

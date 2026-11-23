@@ -82,6 +82,7 @@ class ItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final statusColor = _getStatusColor();
+    final imageBytes = item.imageBytes; // Lấy 1 lần duy nhất từ bộ nhớ đệm
     final formattedDate = formatDateByLocale(
       context,
       item.effectiveExpiryDate,
@@ -107,12 +108,16 @@ class ItemCard extends StatelessWidget {
               // --- CỘT TRÁI: ẢNH HOẶC ICON ---
               ClipRRect(
                 borderRadius: BorderRadius.circular(10),
-                child: item.imageBytes != null
+                child: imageBytes != null
                     ? Image.memory(
-                        item.imageBytes!,
+                        imageBytes,
                         width: 56,
                         height: 56,
+                        // Nén kích thước ảnh giải mã trong RAM khớp đúng ô 56x56 (tỉ lệ màn hình 3x = 168px)
+                        cacheWidth: 168,
                         fit: BoxFit.cover,
+                        // Giữ nguyên khung hình cũ khi vẽ lại -> không bị chớp trắng khi gõ tìm kiếm
+                        gaplessPlayback: true,
                       )
                     : Container(
                         width: 56,

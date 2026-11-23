@@ -761,7 +761,7 @@ abstract class AppLocalizations {
   /// No description provided for @logCalendarNoWritable.
   ///
   /// In en, this message translates to:
-  /// **'No writable calendar available (sign in to a Google account on device).'**
+  /// **'No writable calendar found (Device Calendar and Google Calendar are unavailable).'**
   String get logCalendarNoWritable;
 
   /// No description provided for @logCalendarSkippedPast.

@@ -222,7 +222,7 @@
   },
   "logCalendarDenied": "Calendar permission denied by user.",
   "logCalendarNoAccount": "No calendar account found on this device.",
-  "logCalendarNoWritable": "No writable calendar available (sign in to a Google account on device).",
+  "logCalendarNoWritable": "No writable calendar found (Device Calendar and Google Calendar are unavailable).",
   "logCalendarSkippedPast": "Skipped past calendar alert ({alert}) for \"{name}\".",
   "@logCalendarSkippedPast": {
     "placeholders": {
