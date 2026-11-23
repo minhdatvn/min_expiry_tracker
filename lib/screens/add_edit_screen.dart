@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 import '../services/database_service.dart';
 
@@ -18,32 +20,28 @@ class AddEditScreen extends StatefulWidget {
 class _AddEditScreenState extends State<AddEditScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Các bộ điều khiển ô nhập liệu
   late final TextEditingController _nameController;
   late final TextEditingController _paoValueController;
   late final TextEditingController _quantityController;
-  late final TextEditingController _notesController;      // MỚI: Ghi chú
-  late final TextEditingController _alertValueController; // MỚI: Khung nhập số thông báo
+  late final TextEditingController _notesController;
+  late final TextEditingController _alertValueController;
 
-  // Danh mục & ngày tháng
+  // Lưu giá trị danh mục chuẩn trong SQLite, chỉ dịch phần chữ hiển thị
   final List<String> _categories = ['Medicine', 'Cosmetics', 'Food', 'Other'];
   late String _selectedCategory;
   DateTime? _expiryDate;
   DateTime? _openedDate;
   late String _paoUnit;
 
-  // MỚI: Chủ sở hữu & Vị trí (chọn nhanh bằng danh sách giá trị)
   String? _selectedOwner;
   List<String> _availableOwners = ['Me', 'Family'];
 
   String? _selectedLocation;
   List<String> _availableLocations = ['Fridge', 'Medicine Box', 'Bathroom'];
 
-  // MỚI: Danh sách mốc thông báo thông minh + đơn vị đang chọn để thêm
   late List<AlertMilestone> _alerts;
   String _newAlertUnit = 'days';
 
-  // Ảnh chụp sản phẩm
   String? _imageBase64;
   Uint8List? _imageBytes;
 
@@ -83,7 +81,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _imageBase64 = item?.imageBase64;
     _imageBytes = item?.imageBytes;
 
-    // Tải các giá trị Owner & Location đã từng dùng từ SQLite để gợi ý chọn nhanh
     _loadSavedSuggestions();
   }
 
@@ -93,7 +90,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
     if (!mounted) return;
     setState(() {
-      // Dùng Set để tự động lọc trùng lặp, giữ lại cả gợi ý mặc định lẫn dữ liệu của bạn
       final ownerSet = <String>{
         ..._availableOwners,
         ...savedOwners,
@@ -142,6 +138,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   }
 
   void _showImageSourceSheet() {
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       builder: (context) => SafeArea(
@@ -149,7 +146,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take a Photo'),
+              title: Text(l10n.takePhoto),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.camera);
@@ -157,7 +154,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from Gallery'),
+              title: Text(l10n.chooseFromGallery),
               onTap: () {
                 Navigator.pop(context);
                 _pickImage(ImageSource.gallery);
@@ -166,9 +163,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
             if (_imageBytes != null)
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: const Text(
-                  'Remove Photo',
-                  style: TextStyle(color: Colors.red),
+                title: Text(
+                  l10n.removePhoto,
+                  style: const TextStyle(color: Colors.red),
                 ),
                 onTap: () {
                   Navigator.pop(context);
@@ -237,12 +234,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
   }
 
-  // --- 3. MỚI: HỘP THOẠI THÊM GIÁ TRỊ MỚI CHO CHỦ SỞ HỮU HOẶC VỊ TRÍ ---
+  // --- 3. HỘP THOẠI THÊM GIÁ TRỊ MỚI CHO CHỦ SỞ HỮU HOẶC VỊ TRÍ ---
   Future<void> _showAddTagDialog({
     required String title,
     required String hintText,
     required bool isOwner,
   }) async {
+    final l10n = AppLocalizations.of(context)!;
     final controller = TextEditingController();
 
     final String? newValue = await showDialog<String>(
@@ -261,7 +259,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           FilledButton(
             onPressed: () {
@@ -270,7 +268,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 Navigator.pop(context, text);
               }
             },
-            child: const Text('Add'),
+            child: Text(l10n.add),
           ),
         ],
       ),
@@ -293,12 +291,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
   }
 
-  // --- 4. MỚI: THÊM MỐC CẢNH BÁO TỪ 2 KHUNG (SỐ + ĐƠN VỊ) + NÚT CỘNG ---
+  // --- 4. THÊM MỐC CẢNH BÁO ---
   void _addAlertMilestone() {
+    final l10n = AppLocalizations.of(context)!;
     final value = int.tryParse(_alertValueController.text.trim());
     if (value == null || value <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid positive number.')),
+        SnackBar(content: Text(l10n.invalidPositiveNumber)),
       );
       return;
     }
@@ -308,7 +307,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     );
     if (alreadyExists) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This alert milestone already exists.')),
+        SnackBar(content: Text(l10n.alertAlreadyExists)),
       );
       return;
     }
@@ -322,11 +321,12 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   // --- 5. LƯU VẬT PHẨM ---
   void _saveItem() {
+    final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
 
     if (_expiryDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select an expiry date.')),
+        SnackBar(content: Text(l10n.selectExpiryDateError)),
       );
       return;
     }
@@ -354,20 +354,21 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   // --- 6. XÁC NHẬN XÓA ---
   Future<void> _confirmDelete() async {
+    final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Item?'),
-        content: Text('Remove "${widget.existingItem!.name}" from your list?'),
+        title: Text(l10n.deleteItemTitle),
+        content: Text(l10n.deleteItemConfirm(widget.existingItem!.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -380,25 +381,22 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final dateFormat = DateFormat('MMM dd, yyyy');
+    final l10n = AppLocalizations.of(context)!;
     final timeFormat = DateFormat('HH:mm');
 
     return Scaffold(
-      // Tự co giãn vùng cuộn khi bàn phím ảo bật lên -> chống sọc vàng đen báo tràn
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Item' : 'Add New Item'),
+        title: Text(_isEditing ? l10n.editItem : l10n.addNewItem),
         actions: [
           if (_isEditing)
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
-              tooltip: 'Delete',
+              tooltip: l10n.delete,
               onPressed: _confirmDelete,
             ),
         ],
       ),
-
-      // SafeArea bao toàn bộ nội dung để không bị đè vào thanh điều hướng Android
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -437,7 +435,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
-                                  'Add Photo',
+                                  l10n.addPhoto,
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: Colors.grey.shade600,
@@ -454,14 +452,14 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 TextFormField(
                   controller: _nameController,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Item Name *',
-                    hintText: 'e.g., Vitamin C Serum, Fresh Milk',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: l10n.itemNameLabel,
+                    hintText: l10n.itemNameHint,
+                    border: const OutlineInputBorder(),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter an item name';
+                      return l10n.itemNameError;
                     }
                     return null;
                   },
@@ -474,12 +472,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       flex: 3,
                       child: DropdownButtonFormField<String>(
                         value: _selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Category *',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.categoryLabel,
+                          border: const OutlineInputBorder(),
                         ),
                         items: _categories.map((cat) {
-                          return DropdownMenuItem(value: cat, child: Text(cat));
+                          return DropdownMenuItem(
+                            value: cat,
+                            child: Text(localizeCategory(l10n, cat)),
+                          );
                         }).toList(),
                         onChanged: (value) {
                           if (value != null) {
@@ -494,10 +495,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       child: TextFormField(
                         controller: _quantityController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Quantity',
+                        decoration: InputDecoration(
+                          labelText: l10n.quantityLabel,
                           hintText: '1',
-                          border: OutlineInputBorder(),
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -512,11 +513,11 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     side: BorderSide(color: Colors.grey.shade500),
                   ),
                   leading: const Icon(Icons.calendar_today_outlined),
-                  title: const Text('Expiry Date *'),
+                  title: Text(l10n.expiryDateLabel),
                   subtitle: Text(
                     _expiryDate != null
-                        ? dateFormat.format(_expiryDate!)
-                        : 'Tap to select date',
+                        ? formatDateByLocale(context, _expiryDate!)
+                        : l10n.tapToSelectDate,
                     style: TextStyle(
                       color: _expiryDate != null
                           ? Colors.black87
@@ -530,9 +531,12 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 const SizedBox(height: 22),
 
                 // === KHU VỰC 3: HẠN SAU MỞ NẮP (PAO) ===
-                const Text(
-                  'Period After Opening (Optional)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                Text(
+                  l10n.paoSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
 
@@ -543,10 +547,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       child: TextFormField(
                         controller: _paoValueController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'PAO Value',
-                          hintText: 'e.g., 6',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.paoValueLabel,
+                          hintText: '6',
+                          border: const OutlineInputBorder(),
                         ),
                       ),
                     ),
@@ -555,14 +559,23 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       flex: 3,
                       child: DropdownButtonFormField<String>(
                         value: _paoUnit,
-                        decoration: const InputDecoration(
-                          labelText: 'Unit',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.unitLabel,
+                          border: const OutlineInputBorder(),
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'months', child: Text('Months')),
-                          DropdownMenuItem(value: 'days', child: Text('Days')),
-                          DropdownMenuItem(value: 'hours', child: Text('Hours')),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'months',
+                            child: Text(l10n.unitMonths),
+                          ),
+                          DropdownMenuItem(
+                            value: 'days',
+                            child: Text(l10n.unitDays),
+                          ),
+                          DropdownMenuItem(
+                            value: 'hours',
+                            child: Text(l10n.unitHours),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -592,8 +605,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
                         icon: const Icon(Icons.lock_open_outlined, size: 18),
                         label: Text(
                           _openedDate != null
-                              ? dateFormat.format(_openedDate!)
-                              : 'Opened Date',
+                              ? formatDateByLocale(context, _openedDate!)
+                              : l10n.openedDateBtn,
                           overflow: TextOverflow.ellipsis,
                         ),
                         onPressed: () => _selectDate(isExpiryDate: false),
@@ -617,7 +630,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                           label: Text(
                             _openedDate != null
                                 ? timeFormat.format(_openedDate!)
-                                : 'Time',
+                                : l10n.timeBtn,
                           ),
                           onPressed: _selectOpenedTime,
                         ),
@@ -626,17 +639,20 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     if (_openedDate != null)
                       IconButton(
                         icon: const Icon(Icons.close, size: 18),
-                        tooltip: 'Clear opened date',
+                        tooltip: l10n.clearOpenedDate,
                         onPressed: () => setState(() => _openedDate = null),
                       ),
                   ],
                 ),
                 const SizedBox(height: 22),
 
-                // === KHU VỰC 4: CHỦ SỞ HỮU (CHỌN NHANH ĐỂ LỌC & THỐNG KÊ) ===
-                const Text(
-                  'Owner (Optional)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                // === KHU VỰC 4: CHỦ SỞ HỮU ===
+                Text(
+                  l10n.ownerSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Wrap(
@@ -646,7 +662,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     ..._availableOwners.map((owner) {
                       final isSelected = _selectedOwner == owner;
                       return ChoiceChip(
-                        label: Text(owner),
+                        label: Text(localizeOwner(l10n, owner)), // ĐÃ DỊCH
                         selected: isSelected,
                         onSelected: (selected) {
                           setState(() {
@@ -657,10 +673,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     }),
                     ActionChip(
                       avatar: const Icon(Icons.add, size: 18),
-                      label: const Text('New Owner'),
+                      label: Text(l10n.newOwner),
                       onPressed: () => _showAddTagDialog(
-                        title: 'Add New Owner',
-                        hintText: 'e.g., Mom, Dad, Kids',
+                        title: l10n.addNewOwnerTitle,
+                        hintText: l10n.addNewOwnerHint,
                         isOwner: true,
                       ),
                     ),
@@ -668,10 +684,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 ),
                 const SizedBox(height: 18),
 
-                // === KHU VỰC 5: VỊ TRÍ CẤT GIỮ (TÙY CHỌN, CHỌN NHANH) ===
-                const Text(
-                  'Location (Optional)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                // === KHU VỰC 5: VỊ TRÍ CẤT GIỮ ===
+                Text(
+                  l10n.locationSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Wrap(
@@ -681,7 +700,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     ..._availableLocations.map((loc) {
                       final isSelected = _selectedLocation == loc;
                       return ChoiceChip(
-                        label: Text(loc),
+                        label: Text(localizeLocation(l10n, loc)), // ĐÃ DỊCH
                         selected: isSelected,
                         onSelected: (selected) {
                           setState(() {
@@ -691,11 +710,14 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       );
                     }),
                     ActionChip(
-                      avatar: const Icon(Icons.add_location_alt_outlined, size: 18),
-                      label: const Text('New Location'),
+                      avatar: const Icon(
+                        Icons.add_location_alt_outlined,
+                        size: 18,
+                      ),
+                      label: Text(l10n.newLocation),
                       onPressed: () => _showAddTagDialog(
-                        title: 'Add New Location',
-                        hintText: 'e.g., Kitchen Shelf, Bedroom',
+                        title: l10n.addNewLocationTitle,
+                        hintText: l10n.addNewLocationHint,
                         isOwner: false,
                       ),
                     ),
@@ -703,19 +725,21 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 ),
                 const SizedBox(height: 22),
 
-                // === KHU VỰC 6: THÔNG BÁO TÙY CHỌN + TICK THÊM VÀO LỊCH ===
-                const Text(
-                  'Custom Alerts & Device Calendar',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                // === KHU VỰC 6: THÔNG BÁO TÙY CHỌN + LỊCH ĐIỆN THOẠI ===
+                Text(
+                  l10n.alertsSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Enter time before expiry and tap + to add. Tick "Calendar" to auto-sync that alert.',
+                  l10n.alertsSectionHint,
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 10),
 
-                // 2 khung (Số + Đơn vị) và nút dấu Cộng (+) nằm gọn 1 hàng
                 Row(
                   children: [
                     Expanded(
@@ -723,10 +747,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       child: TextField(
                         controller: _alertValueController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Before',
-                          hintText: 'e.g., 3',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.beforeLabel,
+                          hintText: '3',
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
                       ),
@@ -736,14 +760,20 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       flex: 3,
                       child: DropdownButtonFormField<String>(
                         value: _newAlertUnit,
-                        decoration: const InputDecoration(
-                          labelText: 'Unit',
-                          border: OutlineInputBorder(),
+                        decoration: InputDecoration(
+                          labelText: l10n.unitLabel,
+                          border: const OutlineInputBorder(),
                           isDense: true,
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'hours', child: Text('Hours')),
-                          DropdownMenuItem(value: 'days', child: Text('Days')),
+                        items: [
+                          DropdownMenuItem(
+                            value: 'hours',
+                            child: Text(l10n.unitHours),
+                          ),
+                          DropdownMenuItem(
+                            value: 'days',
+                            child: Text(l10n.unitDays),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value != null) {
@@ -756,16 +786,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     IconButton.filled(
                       onPressed: _addAlertMilestone,
                       icon: const Icon(Icons.add),
-                      tooltip: 'Add Alert',
+                      tooltip: l10n.addAlertTooltip,
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
 
-                // Danh sách các mốc đã thêm — mỗi mốc có Checkbox Calendar riêng
                 if (_alerts.isEmpty)
                   Text(
-                    'No alerts set for this item.',
+                    l10n.noAlertsSet,
                     style: TextStyle(
                       fontSize: 13,
                       fontStyle: FontStyle.italic,
@@ -801,14 +830,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                alert.label,
+                                localizeAlertLabel(l10n, alert),
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                   fontSize: 13,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            // Ô tick riêng để tự động đồng bộ mốc này vào Lịch điện thoại
                             InkWell(
                               borderRadius: BorderRadius.circular(6),
                               onTap: () {
@@ -824,6 +854,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
                                   Checkbox(
                                     value: alert.addToCalendar,
                                     visualDensity: VisualDensity.compact,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                     onChanged: (checked) {
                                       setState(() {
                                         _alerts[index] = alert.copyWith(
@@ -832,9 +864,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
                                       });
                                     },
                                   ),
-                                  const Text(
-                                    'Calendar',
-                                    style: TextStyle(fontSize: 12),
+                                  Text(
+                                    l10n.addToCalendar,
+                                    style: const TextStyle(fontSize: 12),
                                   ),
                                   const SizedBox(width: 4),
                                 ],
@@ -843,7 +875,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                             IconButton(
                               icon: const Icon(Icons.close, size: 18),
                               visualDensity: VisualDensity.compact,
-                              tooltip: 'Remove alert',
+                              tooltip: l10n.removeAlertTooltip,
                               onPressed: () {
                                 setState(() => _alerts.removeAt(index));
                               },
@@ -855,10 +887,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   ),
                 const SizedBox(height: 18),
 
-                // === KHU VỰC 7: MỚI - GHI CHÚ TỰ DO NHIỀU DÒNG ===
-                const Text(
-                  'Notes (Optional)',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                // === KHU VỰC 7: GHI CHÚ ===
+                Text(
+                  l10n.notesSectionTitle,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
@@ -866,9 +901,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   minLines: 2,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    hintText: 'Storage tips, dosage, where you bought it...',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    hintText: l10n.notesHint,
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ],
@@ -876,8 +911,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
           ),
         ),
       ),
-
-      // MỚI: Thanh nút Lưu ghim gọn phía dưới & bọc SafeArea -> CHỐNG TRÀN VIỀN DƯỚI TUYỆT ĐỐI
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -892,7 +925,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               onPressed: _saveItem,
               icon: const Icon(Icons.check),
               label: Text(
-                _isEditing ? 'Save Changes' : 'Add Item',
+                _isEditing ? l10n.saveChanges : l10n.addItem,
                 style: const TextStyle(fontSize: 16),
               ),
             ),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 import '../services/calendar_service.dart';
 import '../services/database_service.dart';
@@ -17,8 +19,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  // Giữ khóa nội bộ bằng tiếng Anh để đổi ngôn ngữ không làm hỏng trạng thái lọc
   String _selectedCategory = 'All';
-  String _selectedOwner = 'All'; // MỚI: Bộ lọc theo Chủ sở hữu
+  String _selectedOwner = 'All';
+  String _selectedLocation = 'All';
 
   final List<String> _categories = [
     'All',
@@ -37,7 +44,12 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadItems();
   }
 
-  // Tạo danh sách các nút lọc Chủ sở hữu tự động từ dữ liệu đang có
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   List<String> get _ownerFilterOptions {
     final owners = _items
         .map((e) => e.owner?.trim() ?? '')
@@ -57,22 +69,62 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
+  List<String> get _locationFilterOptions {
+    final locations = _items
+        .map((e) => e.location?.trim() ?? '')
+        .where((l) => l.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    final hasUnassigned = _items.any(
+      (e) => e.location == null || e.location!.trim().isEmpty,
+    );
+
+    return [
+      'All',
+      ...locations,
+      if (hasUnassigned && locations.isNotEmpty) 'No Location',
+    ];
+  }
+
+  bool get _hasActiveFilters =>
+      _searchQuery.isNotEmpty ||
+      _selectedCategory != 'All' ||
+      _selectedOwner != 'All' ||
+      _selectedLocation != 'All';
+
+  void _resetAllFilters() {
+    setState(() {
+      _searchController.clear();
+      _searchQuery = '';
+      _selectedCategory = 'All';
+      _selectedOwner = 'All';
+      _selectedLocation = 'All';
+    });
+  }
+
   Future<void> _loadItems() async {
     final items = await DatabaseService.instance.getAllItems();
     if (!mounted) return;
     setState(() {
       _items = items;
       _isLoading = false;
-      // Nếu chủ sở hữu đang lọc không còn món nào nữa thì quay về 'All'
       if (_selectedOwner != 'All' &&
           !_ownerFilterOptions.contains(_selectedOwner)) {
         _selectedOwner = 'All';
       }
+      if (_selectedLocation != 'All' &&
+          !_locationFilterOptions.contains(_selectedLocation)) {
+        _selectedLocation = 'All';
+      }
     });
   }
 
-  // Lọc kết hợp cả Danh mục + Chủ sở hữu, sau đó sắp xếp theo độ khẩn cấp
   List<HouseholdItem> get _filteredItems {
+    final l10n = AppLocalizations.of(context)!;
+    final keyword = _searchQuery.trim().toLowerCase();
+
     final filtered = _items.where((item) {
       final matchesCategory =
           _selectedCategory == 'All' || item.category == _selectedCategory;
@@ -87,15 +139,45 @@ class _HomeScreenState extends State<HomeScreen> {
         matchesOwner = ownerName == _selectedOwner;
       }
 
-      return matchesCategory && matchesOwner;
+      final locationName = item.location?.trim() ?? '';
+      final bool matchesLocation;
+      if (_selectedLocation == 'All') {
+        matchesLocation = true;
+      } else if (_selectedLocation == 'No Location') {
+        matchesLocation = locationName.isEmpty;
+      } else {
+        matchesLocation = locationName == _selectedLocation;
+      }
+
+      final bool matchesSearch;
+      if (keyword.isEmpty) {
+        matchesSearch = true;
+      } else {
+        // Cho phép tìm cả tên danh mục tiếng Anh lẫn tiếng Việt (VD: gõ "Thuốc" hoặc "Medicine")
+        final searchableText = [
+          item.name,
+          item.category,
+          localizeCategory(l10n, item.category),
+          item.owner ?? '',
+          if (item.owner != null && item.owner!.isNotEmpty)
+            localizeOwner(l10n, item.owner!),
+          item.location ?? '',
+          if (item.location != null && item.location!.isNotEmpty)
+            localizeLocation(l10n, item.location!),
+          item.notes ?? '',
+        ].join(' ').toLowerCase();
+        matchesSearch = searchableText.contains(keyword); // <-- BỔ SUNG DÒNG NÀY
+      }
+
+      return matchesCategory && matchesOwner && matchesLocation && matchesSearch;
     }).toList();
 
     filtered.sort((a, b) => a.timeRemaining.compareTo(b.timeRemaining));
     return filtered;
   }
 
-  // MỚI: Bảng Thống kê theo Chủ sở hữu (bấm vào từng người để lọc nhanh luôn!)
   void _showOwnerStatsSheet() {
+    final l10n = AppLocalizations.of(context)!;
     final Map<String, List<HouseholdItem>> grouped = {};
     for (final item in _items) {
       final key = (item.owner == null || item.owner!.trim().isEmpty)
@@ -104,7 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
       grouped.putIfAbsent(key, () => []).add(item);
     }
 
-    // Sắp xếp người có nhiều vật phẩm nhất lên trên
     final sortedEntries = grouped.entries.toList()
       ..sort((a, b) => b.value.length.compareTo(a.value.length));
 
@@ -121,12 +202,15 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Owner Statistics',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    l10n.ownerStatistics,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   Text(
-                    'Total: ${_items.length} items',
+                    l10n.totalItems(_items.length),
                     style: TextStyle(
                       color: Colors.teal.shade700,
                       fontWeight: FontWeight.w600,
@@ -136,14 +220,14 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Tap any owner to filter your list.',
+                l10n.tapOwnerToFilter,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
               ),
               const SizedBox(height: 12),
               if (sortedEntries.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: Center(child: Text('No items to summarize yet.')),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: Text(l10n.noItemsToSummarize)),
                 )
               else
                 Flexible(
@@ -153,7 +237,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, index) {
                       final entry = sortedEntries[index];
-                      final ownerName = entry.key;
+                      final ownerKey = entry.key;
+                      final displayOwner = localizeOwner(l10n, ownerKey);
                       final ownerItems = entry.value;
 
                       final expiredCount = ownerItems
@@ -177,11 +262,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         title: Text(
-                          ownerName,
+                          displayOwner,
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         subtitle: Text(
-                          'Expired: $expiredCount • Expiring ≤7d: $soonCount',
+                          l10n.ownerStatsSubtitle(expiredCount, soonCount),
                           style: TextStyle(
                             fontSize: 12,
                             color: expiredCount > 0
@@ -199,8 +284,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(context);
                           setState(() {
                             _selectedOwner =
-                                _ownerFilterOptions.contains(ownerName)
-                                    ? ownerName
+                                _ownerFilterOptions.contains(ownerKey)
+                                    ? ownerKey
                                     : 'All';
                           });
                         },
@@ -215,7 +300,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Mở màn hình Thêm/Sửa và tự động đồng bộ: SQLite + Thông báo + Lịch + Log
   Future<void> _openAddEditScreen({HouseholdItem? existingItem}) async {
     final result = await Navigator.push(
       context,
@@ -232,28 +316,27 @@ class _HomeScreenState extends State<HomeScreen> {
       await CalendarService.instance.deleteItemCalendarEvents(existingItem);
       await LogService.instance.addLog(
         'DELETE',
-        'Deleted "${existingItem.name}".',
+        encodeLogMessage('logItemDeleted', {'name': existingItem.name}),
       );
     } else if (result is HouseholdItem) {
       if (existingItem == null) {
-        // 1. Lưu mới vào SQLite để lấy ID
         final newId = await DatabaseService.instance.insertItem(result);
         var savedItem = result.copyWith(id: newId);
 
-        // 2. Tự động đồng bộ các mốc được tick sang Lịch điện thoại & lưu lại eventId
         final syncedAlerts = await CalendarService.instance
             .syncItemCalendarEvents(savedItem);
         savedItem = savedItem.copyWith(alerts: syncedAlerts);
         await DatabaseService.instance.updateItem(savedItem);
 
-        // 3. Đặt lịch thông báo offline + ghi Log
         await NotifyService.instance.scheduleItemAlerts(savedItem);
         await LogService.instance.addLog(
           'ADD',
-          'Added "${savedItem.name}" (${savedItem.category}).',
+          encodeLogMessage('logItemAdded', {
+            'name': savedItem.name,
+            'category': savedItem.category,
+          }),
         );
       } else {
-        // 1. Đồng bộ lại sự kiện Lịch (tự xóa sự kiện cũ & tạo sự kiện mới)
         final syncedAlerts = await CalendarService.instance
             .syncItemCalendarEvents(
               result,
@@ -261,12 +344,11 @@ class _HomeScreenState extends State<HomeScreen> {
             );
         final updatedItem = result.copyWith(alerts: syncedAlerts);
 
-        // 2. Cập nhật SQLite + đặt lại thông báo + ghi Log
         await DatabaseService.instance.updateItem(updatedItem);
         await NotifyService.instance.scheduleItemAlerts(updatedItem);
         await LogService.instance.addLog(
           'UPDATE',
-          'Updated "${updatedItem.name}".',
+          encodeLogMessage('logItemUpdated', {'name': updatedItem.name}),
         );
       }
     }
@@ -276,26 +358,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final displayItems = _filteredItems;
     final ownerOptions = _ownerFilterOptions;
+    final locationOptions = _locationFilterOptions;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'MinExpiryTracker',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          l10n.appTitle,
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
-          // MỚI: Nút Biểu đồ mở Thống kê Chủ sở hữu
           IconButton(
             icon: const Icon(Icons.bar_chart_outlined),
-            tooltip: 'Owner Statistics',
+            tooltip: l10n.ownerStatistics,
             onPressed: _showOwnerStatsSheet,
           ),
-          // ĐỔI CHỨC NĂNG: Icon chiếc chuông giờ mở màn hình Xem Log ứng dụng
           IconButton(
             icon: const Icon(Icons.notifications_outlined),
-            tooltip: 'App Logs',
+            tooltip: l10n.appLogs,
             onPressed: () {
               Navigator.push(
                 context,
@@ -305,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Settings',
+            tooltip: l10n.settings,
             onPressed: () async {
               await Navigator.push(
                 context,
@@ -316,23 +398,54 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-
-      // Bọc SafeArea để danh sách không bao giờ tràn xuống thanh điều hướng dưới
       body: SafeArea(
         child: Column(
           children: [
-            // --- 1. THANH LỌC DANH MỤC ---
+            // --- 1. THANH TÌM KIẾM NHANH ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() => _searchQuery = value);
+                },
+                decoration: InputDecoration(
+                  hintText: l10n.searchHint,
+                  prefixIcon: const Icon(Icons.search, size: 20),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: l10n.clearSearch,
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _searchQuery = '');
+                          },
+                        )
+                      : null,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+            // --- 2. THANH LỌC DANH MỤC ---
             SizedBox(
-              height: 48,
+              height: 46,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 itemCount: _categories.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   final category = _categories[index];
                   return ChoiceChip(
-                    label: Text(category),
+                    label: Text(localizeCategory(l10n, category)),
                     selected: _selectedCategory == category,
                     onSelected: (_) {
                       setState(() => _selectedCategory = category);
@@ -342,22 +455,24 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-            // --- 2. MỚI: THANH LỌC THEO CHỦ SỞ HỮU (Chỉ hiện khi có dữ liệu chủ sở hữu) ---
+            // --- 3. THANH LỌC CHỦ SỞ HỮU ---
             if (ownerOptions.length > 1)
               SizedBox(
-                height: 44,
+                height: 42,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
                   itemCount: ownerOptions.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (context, index) {
                     final owner = ownerOptions[index];
+                    final label = localizeOwner(l10n, owner);
+
                     return FilterChip(
                       avatar: owner == 'All'
                           ? null
                           : const Icon(Icons.person_outline, size: 16),
-                      label: Text(owner == 'All' ? 'All Owners' : owner),
+                      label: Text(label),
                       selected: _selectedOwner == owner,
                       onSelected: (_) {
                         setState(() => _selectedOwner = owner);
@@ -367,7 +482,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-            // --- 3. DANH SÁCH VẬT PHẨM ---
+            // --- 4. THANH LỌC VỊ TRÍ ---
+            if (locationOptions.length > 1)
+              SizedBox(
+                height: 42,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+                  itemCount: locationOptions.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final location = locationOptions[index];
+                    final label = localizeLocation(l10n, location);
+
+                    return FilterChip(
+                      avatar: location == 'All'
+                          ? null
+                          : const Icon(Icons.location_on_outlined, size: 16),
+                      label: Text(label),
+                      selected: _selectedLocation == location,
+                      onSelected: (_) {
+                        setState(() => _selectedLocation = location);
+                      },
+                    );
+                  },
+                ),
+              ),
+
+            // --- 5. DANH SÁCH VẬT PHẨM ---
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -375,20 +517,34 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Center(
                           child: Padding(
                             padding: const EdgeInsets.all(24),
-                            child: Text(
-                              _items.isEmpty
-                                  ? 'No items yet.\nTap "+ Add Item" to track your first item!'
-                                  : 'No items match the current filters.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 15,
-                              ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _items.isEmpty
+                                      ? l10n.noItemsYet
+                                      : l10n.noItemsMatchFilters,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                if (_items.isNotEmpty && _hasActiveFilters) ...[
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
+                                    onPressed: _resetAllFilters,
+                                    icon: const Icon(Icons.refresh, size: 18),
+                                    label: Text(l10n.clearAllFilters),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         )
                       : ListView.builder(
-                          // Padding đáy 96px giúp thẻ cuối không bị nút "+ Add Item" che mất
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           padding: const EdgeInsets.only(top: 4, bottom: 96),
                           itemCount: displayItems.length,
                           itemBuilder: (context, index) {
@@ -403,11 +559,10 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openAddEditScreen(),
         icon: const Icon(Icons.add),
-        label: const Text('Add Item'),
+        label: Text(l10n.addItem),
       ),
     );
   }

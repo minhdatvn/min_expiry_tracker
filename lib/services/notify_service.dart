@@ -1,6 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import '../l10n/l10n_helpers.dart'; // MỚI: Hỗ trợ đóng gói nội dung Log đa ngôn ngữ
 import '../models/item_model.dart';
 import 'log_service.dart';
 
@@ -24,7 +25,6 @@ class NotifyService {
     android: _androidDetails,
   );
 
-  // 1. Khởi tạo hệ thống thông báo (chạy 1 lần trong main.dart)
   Future<void> init() async {
     tz_data.initializeTimeZones();
 
@@ -39,7 +39,6 @@ class NotifyService {
         ?.requestNotificationsPermission();
   }
 
-  // 2. Gửi thử 1 thông báo ngay lập tức (có thể gọi từ màn hình Log/Settings)
   Future<void> showTestNotification() async {
     await _plugin.show(
       id: 0,
@@ -49,11 +48,10 @@ class NotifyService {
     );
     await LogService.instance.addLog(
       'NOTIFY',
-      'Sent test notification.',
+      encodeLogMessage('logTestNotifySent'),
     );
   }
 
-  // 3. Hủy toàn bộ lịch nhắc cũ của 1 vật phẩm
   Future<void> cancelItemAlerts(int itemId) async {
     final pending = await _plugin.pendingNotificationRequests();
     for (final request in pending) {
@@ -63,7 +61,6 @@ class NotifyService {
     }
   }
 
-  // 4. NÂNG CẤP: Lên lịch nhắc nhở theo danh sách AlertMilestone (hỗ trợ cả Giờ & Ngày)
   Future<void> scheduleItemAlerts(HouseholdItem item, {int? overrideId}) async {
     final int? itemId = overrideId ?? item.id;
     if (itemId == null) return;
@@ -75,16 +72,13 @@ class NotifyService {
 
     for (int i = 0; i < item.alerts.length; i++) {
       final alert = item.alerts[i];
-      // Dùng công thức tính thời điểm dùng chung từ item_model.dart
       final scheduledLocalTime = item.calculateAlertTime(alert);
 
-      // Bỏ qua các mốc đã trôi qua trong quá khứ
       if (!scheduledLocalTime.isAfter(now)) continue;
 
       final tzScheduledDate = tz.TZDateTime.from(scheduledLocalTime, tz.local);
       final notificationId = itemId * 100 + i;
 
-      // Tạo câu thông báo tự nhiên tùy theo đơn vị Giờ hay Ngày
       final String bodyText;
       if (alert.unit == 'hours') {
         bodyText = alert.value == 1
@@ -110,12 +104,14 @@ class NotifyService {
     if (scheduledCount > 0) {
       await LogService.instance.addLog(
         'NOTIFY',
-        'Scheduled $scheduledCount reminder(s) for "${item.name}".',
+        encodeLogMessage('logRemindersScheduled', {
+          'count': scheduledCount,
+          'name': item.name,
+        }),
       );
     }
   }
 
-  // 5. Hủy toàn bộ thông báo đang chờ (dùng trước khi Restore)
   Future<void> cancelAllAlerts() async {
     await _plugin.cancelAll();
   }

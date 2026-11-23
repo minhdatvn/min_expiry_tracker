@@ -1,6 +1,7 @@
 import 'package:device_calendar/device_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
+import '../l10n/l10n_helpers.dart'; // MỚI: Hỗ trợ đóng gói Log đa ngôn ngữ
 import '../models/item_model.dart';
 import 'log_service.dart';
 
@@ -10,7 +11,6 @@ class CalendarService {
 
   final DeviceCalendarPlugin _plugin = DeviceCalendarPlugin();
 
-  // Tìm ID của Lịch mặc định có quyền ghi trên điện thoại Android
   Future<String?> _getWritableCalendarId() async {
     var permissionResult = await _plugin.hasPermissions();
     if (permissionResult.isSuccess && permissionResult.data != true) {
@@ -18,7 +18,7 @@ class CalendarService {
       if (!permissionResult.isSuccess || permissionResult.data != true) {
         await LogService.instance.addLog(
           'CALENDAR',
-          'Calendar permission denied by user.',
+          encodeLogMessage('logCalendarDenied'),
         );
         return null;
       }
@@ -29,12 +29,11 @@ class CalendarService {
     if (!calendarsResult.isSuccess || calendars == null || calendars.isEmpty) {
       await LogService.instance.addLog(
         'CALENDAR',
-        'No calendar account found on this device.',
+        encodeLogMessage('logCalendarNoAccount'),
       );
       return null;
     }
 
-    // Lọc các Lịch cho phép ghi (bỏ qua lịch ngày lễ chỉ đọc)
     final writable = calendars
         .where((c) => c.isReadOnly == false && c.id != null)
         .toList();
@@ -42,12 +41,11 @@ class CalendarService {
     if (writable.isEmpty) {
       await LogService.instance.addLog(
         'CALENDAR',
-        'No writable calendar available (sign in to a Google account on device).',
+        encodeLogMessage('logCalendarNoWritable'),
       );
       return null;
     }
 
-    // Ưu tiên chọn Lịch mặc định (isDefault == true), nếu không có lấy lịch đầu tiên
     final selected = writable.firstWhere(
       (c) => c.isDefault == true,
       orElse: () => writable.first,
@@ -55,8 +53,6 @@ class CalendarService {
     return selected.id;
   }
 
-  // Đồng bộ tự động các mốc được tick "Thêm vào Lịch" của 1 vật phẩm
-  // Trả về danh sách AlertMilestone đã gắn mã calendarEventId mới
   Future<List<AlertMilestone>> syncItemCalendarEvents(
     HouseholdItem item, {
     List<AlertMilestone>? previousAlerts,
@@ -65,7 +61,6 @@ class CalendarService {
         previousAlerts.any((a) => a.calendarEventId != null);
     final hasNewRequests = item.alerts.any((a) => a.addToCalendar);
 
-    // Nếu không có lịch cũ cần xóa và cũng không tick mốc mới nào -> thoát luôn (không hỏi quyền)
     if (!hasOldEvents && !hasNewRequests) {
       return item.alerts;
     }
@@ -77,7 +72,6 @@ class CalendarService {
           .toList();
     }
 
-    // Bước A: Xóa các sự kiện cũ trên Lịch (nếu người dùng đang sửa món đồ)
     if (previousAlerts != null) {
       for (final oldAlert in previousAlerts) {
         if (oldAlert.calendarEventId != null) {
@@ -86,7 +80,6 @@ class CalendarService {
       }
     }
 
-    // Bước B: Tạo sự kiện mới chỉ cho các mốc được đánh dấu tick
     final List<AlertMilestone> updatedAlerts = [];
     final now = DateTime.now();
     final dateFmt = DateFormat('MMM dd, yyyy HH:mm');
@@ -101,7 +94,11 @@ class CalendarService {
       if (!alertTime.isAfter(now)) {
         await LogService.instance.addLog(
           'CALENDAR',
-          'Skipped past calendar alert (${alert.label}) for "${item.name}".',
+          encodeLogMessage('logCalendarSkippedPast', {
+            'alertValue': alert.value,
+            'alertUnit': alert.unit,
+            'name': item.name,
+          }),
         );
         updatedAlerts.add(alert.copyWith(clearCalendarEventId: true));
         continue;
@@ -110,7 +107,6 @@ class CalendarService {
       final tzStart = tz.TZDateTime.from(alertTime, tz.local);
       final tzEnd = tzStart.add(const Duration(minutes: 30));
 
-      // Ghép mô tả chi tiết cho sự kiện Lịch
       final details = <String>[
         'Item: ${item.name} (${item.category})',
         'Expires: ${dateFmt.format(item.effectiveExpiryDate)}',
@@ -127,7 +123,7 @@ class CalendarService {
         description: details,
         start: tzStart,
         end: tzEnd,
-        reminders: [Reminder(minutes: 0)], // Báo chuông Lịch đúng giờ sự kiện
+        reminders: [Reminder(minutes: 0)],
       );
 
       final result = await _plugin.createOrUpdateEvent(event);
@@ -135,13 +131,17 @@ class CalendarService {
         updatedAlerts.add(alert.copyWith(calendarEventId: result!.data));
         await LogService.instance.addLog(
           'CALENDAR',
-          'Added calendar event for "${item.name}" (${alert.label}).',
+          encodeLogMessage('logCalendarAdded', {
+            'alertValue': alert.value,
+            'alertUnit': alert.unit,
+            'name': item.name,
+          }),
         );
       } else {
         updatedAlerts.add(alert.copyWith(clearCalendarEventId: true));
         await LogService.instance.addLog(
           'ERROR',
-          'Failed to add calendar event for "${item.name}".',
+          encodeLogMessage('logCalendarFailed', {'name': item.name}),
         );
       }
     }
@@ -149,7 +149,6 @@ class CalendarService {
     return updatedAlerts;
   }
 
-  // Xóa toàn bộ sự kiện Lịch gắn với 1 vật phẩm (dùng khi xóa món đồ)
   Future<void> deleteItemCalendarEvents(HouseholdItem item) async {
     final eventIds = item.alerts
         .map((a) => a.calendarEventId)
@@ -167,7 +166,10 @@ class CalendarService {
 
     await LogService.instance.addLog(
       'CALENDAR',
-      'Removed ${eventIds.length} calendar event(s) for "${item.name}".',
+      encodeLogMessage('logCalendarRemoved', {
+        'count': eventIds.length,
+        'name': item.name,
+      }),
     );
   }
 }

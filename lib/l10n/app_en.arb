@@ -1,0 +1,303 @@
+{
+  "@@locale": "en",
+
+  "appTitle": "MinExpiryTracker",
+  "searchHint": "Search by name, notes, location...",
+  "clearSearch": "Clear search",
+  "ownerStatistics": "Owner Statistics",
+  "appLogs": "App Logs",
+  "settings": "Settings",
+
+  "all": "All",
+  "allOwners": "All Owners",
+  "allLocations": "All Locations",
+  "unassigned": "Unassigned",
+  "noLocation": "No Location",
+
+  "catMedicine": "Medicine",
+  "catCosmetics": "Cosmetics",
+  "catFood": "Food",
+  "catOther": "Other",
+
+  "ownerMe": "Me",
+  "ownerFamily": "Family",
+
+  "locFridge": "Fridge",
+  "locMedicineBox": "Medicine Box",
+  "locBathroom": "Bathroom",
+
+  "noItemsYet": "No items yet.\nTap \"+ Add Item\" to track your first item!",
+  "noItemsMatchFilters": "No items match your search or filters.",
+  "clearAllFilters": "Clear All Filters",
+  "addItem": "Add Item",
+
+  "totalItems": "Total: {count} items",
+  "@totalItems": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tapOwnerToFilter": "Tap any owner to filter your list.",
+  "noItemsToSummarize": "No items to summarize yet.",
+  "ownerStatsSubtitle": "Expired: {expired} • Expiring ≤7d: {soon}",
+  "@ownerStatsSubtitle": {
+    "placeholders": {
+      "expired": { "type": "int" },
+      "soon": { "type": "int" }
+    }
+  },
+
+  "qtyLabel": "Qty: {count}",
+  "@qtyLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "expLabel": "Exp: {date}",
+  "@expLabel": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "today": "Today",
+  "daysLeft": "{count}d left",
+  "@daysLeft": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "daysAgo": "{count}d ago",
+  "@daysAgo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "hoursLeft": "{count}h left",
+  "@hoursLeft": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "hoursAgo": "{count}h ago",
+  "@hoursAgo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "minutesLeft": "{count}m left",
+  "@minutesLeft": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "minutesAgo": "{count}m ago",
+  "@minutesAgo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "editItem": "Edit Item",
+  "addNewItem": "Add New Item",
+  "saveChanges": "Save Changes",
+  "delete": "Delete",
+  "cancel": "Cancel",
+  "add": "Add",
+
+  "addPhoto": "Add Photo",
+  "takePhoto": "Take a Photo",
+  "chooseFromGallery": "Choose from Gallery",
+  "removePhoto": "Remove Photo",
+
+  "itemNameLabel": "Item Name *",
+  "itemNameHint": "e.g., Vitamin C Serum, Fresh Milk",
+  "itemNameError": "Please enter an item name",
+  "categoryLabel": "Category *",
+  "quantityLabel": "Quantity",
+  "expiryDateLabel": "Expiry Date *",
+  "tapToSelectDate": "Tap to select date",
+  "selectExpiryDateError": "Please select an expiry date.",
+
+  "paoSectionTitle": "Period After Opening (Optional)",
+  "paoValueLabel": "PAO Value",
+  "unitLabel": "Unit",
+  "unitMonths": "Months",
+  "unitDays": "Days",
+  "unitHours": "Hours",
+  "openedDateBtn": "Opened Date",
+  "timeBtn": "Time",
+  "clearOpenedDate": "Clear opened date",
+
+  "ownerSectionTitle": "Owner (Optional)",
+  "newOwner": "New Owner",
+  "addNewOwnerTitle": "Add New Owner",
+  "addNewOwnerHint": "e.g., Mom, Dad, Kids",
+
+  "locationSectionTitle": "Location (Optional)",
+  "newLocation": "New Location",
+  "addNewLocationTitle": "Add New Location",
+  "addNewLocationHint": "e.g., Kitchen Shelf, Bedroom",
+
+  "alertsSectionTitle": "Custom Alerts & Device Calendar",
+  "alertsSectionHint": "Enter time before expiry and tap + to add. Tick \"Add to Calendar\" to auto-sync.",
+  "beforeLabel": "Before",
+  "addAlertTooltip": "Add Alert",
+  "noAlertsSet": "No alerts set for this item.",
+  "addToCalendar": "Add to Calendar",
+  "removeAlertTooltip": "Remove alert",
+  "invalidPositiveNumber": "Please enter a valid positive number.",
+  "alertAlreadyExists": "This alert milestone already exists.",
+  "hoursBeforeLabel": "{count} hours before",
+  "@hoursBeforeLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "daysBeforeLabel": "{count} days before",
+  "@daysBeforeLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "notesSectionTitle": "Notes (Optional)",
+  "notesHint": "Storage tips, dosage, where you bought it...",
+  "deleteItemTitle": "Delete Item?",
+  "deleteItemConfirm": "Remove \"{name}\" from your list?",
+  "@deleteItemConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "appActivityLogs": "App Activity Logs",
+  "sendTestNotification": "Send Test Notification",
+  "testNotificationSent": "Test notification sent!",
+  "clearLogs": "Clear Logs",
+  "clearLogsTitle": "Clear All Logs?",
+  "clearLogsConfirm": "This will remove all activity history records.",
+  "clear": "Clear",
+  "noLogsYet": "No activity logs yet.",
+  "noActionLogsFound": "No \"{action}\" logs found.",
+  "@noActionLogsFound": {
+    "placeholders": {
+      "action": { "type": "String" }
+    }
+  },
+
+  "logActionAdd": "Add",
+  "logActionUpdate": "Update",
+  "logActionDelete": "Delete",
+  "logActionNotify": "Notify",
+  "logActionCalendar": "Calendar",
+  "logActionBackup": "Backup",
+  "logActionError": "Error",
+
+  "logItemAdded": "Added \"{name}\" ({category}).",
+  "@logItemAdded": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "category": { "type": "String" }
+    }
+  },
+  "logItemUpdated": "Updated \"{name}\".",
+  "@logItemUpdated": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "logItemDeleted": "Deleted \"{name}\".",
+  "@logItemDeleted": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "logTestNotifySent": "Sent test notification.",
+  "logRemindersScheduled": "Scheduled {count} reminder(s) for \"{name}\".",
+  "@logRemindersScheduled": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "name": { "type": "String" }
+    }
+  },
+  "logCalendarDenied": "Calendar permission denied by user.",
+  "logCalendarNoAccount": "No calendar account found on this device.",
+  "logCalendarNoWritable": "No writable calendar available (sign in to a Google account on device).",
+  "logCalendarSkippedPast": "Skipped past calendar alert ({alert}) for \"{name}\".",
+  "@logCalendarSkippedPast": {
+    "placeholders": {
+      "alert": { "type": "String" },
+      "name": { "type": "String" }
+    }
+  },
+  "logCalendarAdded": "Added calendar event for \"{name}\" ({alert}).",
+  "@logCalendarAdded": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "alert": { "type": "String" }
+    }
+  },
+  "logCalendarFailed": "Failed to add calendar event for \"{name}\".",
+  "@logCalendarFailed": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "logCalendarRemoved": "Removed {count} calendar event(s) for \"{name}\".",
+  "@logCalendarRemoved": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "name": { "type": "String" }
+    }
+  },
+  "logBackupExported": "Exported {count} item(s) to {fileName}.",
+  "@logBackupExported": {
+    "placeholders": {
+      "count": { "type": "int" },
+      "fileName": { "type": "String" }
+    }
+  },
+  "logRestoreInvalid": "Restore failed: Invalid backup file format.",
+  "logBackupRestored": "Restored {count} item(s) from backup file.",
+  "@logBackupRestored": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "languageSection": "Language",
+  "languageTitle": "App Language",
+  "languageSystem": "System Default",
+  "languageEnglish": "English",
+  "languageVietnamese": "Tiếng Việt",
+
+  "dataAndBackup": "Data & Backup",
+  "backupData": "Backup Data",
+  "backupSubtitle": "Export all items & photos as a .json file to Google Drive or device storage",
+  "restoreData": "Restore Data",
+  "restoreSubtitle": "Import a previously saved .json backup file and reschedule alerts",
+  "backupReady": "Backup file ready ({count} items).",
+  "@backupReady": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "backupFailed": "Backup failed: {error}",
+  "@backupFailed": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "restoreDialogTitle": "Restore from Backup?",
+  "restoreDialogContent": "This will replace all current items on this device with the data from your backup file.",
+  "chooseFile": "Choose File",
+  "restoreSuccess": "Successfully restored {count} items!",
+  "@restoreSuccess": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "restoreError": "Could not restore: Please select a valid MinExpiryTracker .json file.",
+  "aboutSection": "About",
+  "versionSubtitle": "Version 1.0.0 • Offline Mode"
+}

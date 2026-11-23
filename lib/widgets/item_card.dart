@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../l10n/app_localizations.dart';
+import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 
 class ItemCard extends StatelessWidget {
@@ -41,26 +42,26 @@ class ItemCard extends StatelessWidget {
     return Colors.green.shade700;
   }
 
-  // 2. Nhãn đếm ngược góc phải
-  String _getStatusText() {
+  // 2. Nhãn đếm ngược góc phải (song ngữ)
+  String _getStatusText(AppLocalizations l10n) {
     if (item.isHourlyPao) {
       final remaining = item.timeRemaining;
       final absMinutes = remaining.inMinutes.abs();
       final absHours = remaining.inHours.abs();
 
       if (remaining.isNegative) {
-        if (absMinutes < 60) return '${absMinutes}m ago';
-        return '${absHours}h ago';
+        if (absMinutes < 60) return l10n.minutesAgo(absMinutes);
+        return l10n.hoursAgo(absHours);
       } else {
-        if (absMinutes < 60) return '${absMinutes}m left';
-        return '${absHours}h left';
+        if (absMinutes < 60) return l10n.minutesLeft(absMinutes);
+        return l10n.hoursLeft(absHours);
       }
     }
 
     final days = item.daysRemaining;
-    if (days < 0) return '${days.abs()}d ago';
-    if (days == 0) return 'Today';
-    return '${days}d left';
+    if (days < 0) return l10n.daysAgo(days.abs());
+    if (days == 0) return l10n.today;
+    return l10n.daysLeft(days);
   }
 
   // 3. Icon mặc định theo danh mục
@@ -79,12 +80,14 @@ class ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final statusColor = _getStatusColor();
-    final formattedDate = item.isHourlyPao
-        ? DateFormat('MMM dd, HH:mm').format(item.effectiveExpiryDate)
-        : DateFormat('MMM dd, yyyy').format(item.effectiveExpiryDate);
+    final formattedDate = formatDateByLocale(
+      context,
+      item.effectiveExpiryDate,
+      includeTime: item.isHourlyPao,
+    );
 
-    // Kiểm tra xem vật phẩm này có mốc nào đang đồng bộ với Lịch điện thoại không
     final hasCalendarSync = item.alerts.any((a) => a.addToCalendar);
 
     return Card(
@@ -140,15 +143,15 @@ class ItemCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
 
-                    // Loại • Số lượng • Chủ sở hữu • Vị trí
                     Text(
                       [
-                        item.category,
-                        if (item.quantity != null) 'Qty: ${item.quantity}',
+                        localizeCategory(l10n, item.category),
+                        if (item.quantity != null)
+                          l10n.qtyLabel(item.quantity!),
                         if (item.owner != null && item.owner!.isNotEmpty)
-                          item.owner!,
+                          localizeOwner(l10n, item.owner!),
                         if (item.location != null && item.location!.isNotEmpty)
-                          item.location!,
+                          localizeLocation(l10n, item.location!),
                       ].join(' • '),
                       style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
                       maxLines: 1,
@@ -156,7 +159,6 @@ class ItemCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
 
-                    // Ngày hết hạn + nhãn PAO + icon đồng bộ Lịch
                     Row(
                       children: [
                         Icon(
@@ -169,7 +171,7 @@ class ItemCard extends StatelessWidget {
                         const SizedBox(width: 4),
                         Flexible(
                           child: Text(
-                            'Exp: $formattedDate',
+                            l10n.expLabel(formattedDate),
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -209,7 +211,6 @@ class ItemCard extends StatelessWidget {
                       ],
                     ),
 
-                    // MỚI: Hiển thị trích đoạn 1 dòng nếu món đồ có Ghi chú
                     if (item.notes != null && item.notes!.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Row(
@@ -248,7 +249,7 @@ class ItemCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  _getStatusText(),
+                  _getStatusText(l10n),
                   style: TextStyle(
                     color: statusColor,
                     fontWeight: FontWeight.bold,
