@@ -299,5 +299,85 @@
   },
   "restoreError": "Could not restore: Please select a valid MinExpiryTracker .json file.",
   "aboutSection": "About",
-  "versionSubtitle": "Version 1.0.0 • Offline Mode"
+  "versionSubtitle": "Version 1.0.0 • Offline Mode",
+  "testNotifyTitle": "MinExpiryTracker is ready!",
+  "testNotifyBody": "Offline expiry reminders are working properly on your phone.",
+  "expiryAlertTitle": "Expiry Alert: {category}",
+  "@expiryAlertTitle": {
+    "placeholders": {
+      "category": { "type": "String" }
+    }
+  },
+  "expiresInOneHour": "{name} expires in 1 hour!",
+  "@expiresInOneHour": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "expiresInHours": "{name} expires in {count} hours!",
+  "@expiresInHours": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "expiresTomorrow": "{name} expires tomorrow!",
+  "@expiresTomorrow": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "expiresInDays": "{name} expires in {count} days.",
+  "@expiresInDays": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "count": { "type": "int" }
+    }
+  },
+  "calItemLine": "Item: {name} ({category})",
+  "@calItemLine": {
+    "placeholders": {
+      "name": { "type": "String" },
+      "category": { "type": "String" }
+    }
+  },
+  "calExpiresLine": "Expires: {date}",
+  "@calExpiresLine": {
+    "placeholders": {
+      "date": { "type": "String" }
+    }
+  },
+  "calReminderLine": "Reminder: {reminder}",
+  "@calReminderLine": {
+    "placeholders": {
+      "reminder": { "type": "String" }
+    }
+  },
+  "calOwnerLine": "Owner: {owner}",
+  "@calOwnerLine": {
+    "placeholders": {
+      "owner": { "type": "String" }
+    }
+  },
+  "calLocationLine": "Location: {location}",
+  "@calLocationLine": {
+    "placeholders": {
+      "location": { "type": "String" }
+    }
+  },
+  "calNotesLine": "Notes: {notes}",
+  "@calNotesLine": {
+    "placeholders": {
+      "notes": { "type": "String" }
+    }
+  },
+
+  "appearanceSection": "Appearance",
+  "themeTitle": "Theme",
+  "themeSystem": "System Default",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "filterCategory": "Category",
+  "filterOwner": "Owner",
+  "filterLocation": "Location"
 }

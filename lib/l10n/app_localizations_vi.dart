@@ -482,4 +482,90 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get versionSubtitle => 'Phiên bản 1.0.0 • Chế độ Offline';
+
+  @override
+  String get testNotifyTitle => 'MinExpiryTracker đã sẵn sàng!';
+
+  @override
+  String get testNotifyBody =>
+      'Thông báo nhắc hạn sử dụng offline đang hoạt động ổn định trên điện thoại.';
+
+  @override
+  String expiryAlertTitle(String category) {
+    return 'Cảnh báo hết hạn: $category';
+  }
+
+  @override
+  String expiresInOneHour(String name) {
+    return '$name sẽ hết hạn sau 1 giờ nữa!';
+  }
+
+  @override
+  String expiresInHours(String name, int count) {
+    return '$name sẽ hết hạn sau $count giờ nữa!';
+  }
+
+  @override
+  String expiresTomorrow(String name) {
+    return '$name sẽ hết hạn vào ngày mai!';
+  }
+
+  @override
+  String expiresInDays(String name, int count) {
+    return '$name sẽ hết hạn sau $count ngày nữa.';
+  }
+
+  @override
+  String calItemLine(String name, String category) {
+    return 'Vật phẩm: $name ($category)';
+  }
+
+  @override
+  String calExpiresLine(String date) {
+    return 'Hết hạn: $date';
+  }
+
+  @override
+  String calReminderLine(String reminder) {
+    return 'Nhắc nhở: $reminder';
+  }
+
+  @override
+  String calOwnerLine(String owner) {
+    return 'Chủ sở hữu: $owner';
+  }
+
+  @override
+  String calLocationLine(String location) {
+    return 'Vị trí: $location';
+  }
+
+  @override
+  String calNotesLine(String notes) {
+    return 'Ghi chú: $notes';
+  }
+
+  @override
+  String get appearanceSection => 'Giao diện';
+
+  @override
+  String get themeTitle => 'Chế độ hiển thị';
+
+  @override
+  String get themeSystem => 'Theo điện thoại';
+
+  @override
+  String get themeLight => 'Sáng';
+
+  @override
+  String get themeDark => 'Tối';
+
+  @override
+  String get filterCategory => 'Danh mục';
+
+  @override
+  String get filterOwner => 'Chủ sở hữu';
+
+  @override
+  String get filterLocation => 'Vị trí';
 }

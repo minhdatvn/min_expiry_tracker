@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.min_expiry_tracker"
+    namespace = "com.min.expiry_tracker"
     compileSdk = flutter.compileSdkVersion
     // Thay flutter.ndkVersion bằng phiên bản cao nhất mà các plugin yêu cầu
     ndkVersion = "27.0.12077973"
@@ -23,7 +23,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.min_expiry_tracker"
+        applicationId = "com.min.expiry_tracker"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../l10n/app_localizations.dart';
 import '../services/backup_service.dart';
 import '../services/locale_service.dart';
+import '../services/notify_service.dart';
+import '../services/theme_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -25,7 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Mở bảng trượt từ đáy lên để chọn ngôn ngữ
+  // Mở bảng trượt từ đáy lên để chọn ngôn ngữ & tự đồng bộ lại ngôn ngữ thông báo đã hẹn
   void _showLanguageSheet() {
     final l10n = AppLocalizations.of(context)!;
     final currentCode = LocaleService.instance.localeNotifier.value?.languageCode;
@@ -34,6 +36,95 @@ class _SettingsScreenState extends State<SettingsScreen> {
       (null, l10n.languageSystem),
       ('en', l10n.languageEnglish),
       ('vi', l10n.languageVietnamese),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final primaryColor = Theme.of(context).colorScheme.primary;
+
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    l10n.languageTitle,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              ...options.map((opt) {
+                final code = opt.$1;
+                final label = opt.$2;
+                final isSelected = currentCode == code;
+
+                return ListTile(
+                  title: Text(
+                    label,
+                    style: TextStyle(
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                      color: isSelected ? primaryColor : null,
+                    ),
+                  ),
+                  trailing: isSelected
+                      ? Icon(Icons.check, color: primaryColor)
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (code == currentCode) return;
+
+                    // So sánh ngôn ngữ hiển thị thực tế trước và sau khi đổi
+                    final oldEffective = LocaleService.instance.effectiveLocale;
+                    await LocaleService.instance.setLocale(code);
+                    final newEffective = LocaleService.instance.effectiveLocale;
+
+                    if (oldEffective != newEffective) {
+                      if (mounted) setState(() => _isBusy = true);
+                      try {
+                        await NotifyService.instance.rescheduleAllAlerts();
+                      } finally {
+                        if (mounted) setState(() => _isBusy = false);
+                      }
+                    }
+                  },
+                );
+              }),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  String _getCurrentThemeLabel(AppLocalizations l10n, ThemeMode mode) {
+    switch (mode) {
+      case ThemeMode.light:
+        return l10n.themeLight;
+      case ThemeMode.dark:
+        return l10n.themeDark;
+      case ThemeMode.system:
+        return l10n.themeSystem;
+    }
+  }
+
+  void _showThemeSheet() {
+    final l10n = AppLocalizations.of(context)!;
+    final currentMode = ThemeService.instance.themeNotifier.value;
+
+    final options = <(ThemeMode, String, IconData)>[
+      (ThemeMode.system, l10n.themeSystem, Icons.brightness_auto_outlined),
+      (ThemeMode.light, l10n.themeLight, Icons.light_mode_outlined),
+      (ThemeMode.dark, l10n.themeDark, Icons.dark_mode_outlined),
     ];
 
     showModalBottomSheet(
@@ -48,7 +139,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  l10n.languageTitle,
+                  l10n.themeTitle,
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -57,24 +148,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
             ...options.map((opt) {
-              final code = opt.$1;
+              final mode = opt.$1;
               final label = opt.$2;
-              final isSelected = currentCode == code;
+              final icon = opt.$3;
+              final isSelected = currentMode == mode;
 
               return ListTile(
+                leading: Icon(
+                  icon,
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : null,
+                ),
                 title: Text(
                   label,
                   style: TextStyle(
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                    color: isSelected ? Colors.teal.shade700 : null,
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.primary
+                        : null,
                   ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check, color: Colors.teal.shade700)
+                    ? Icon(
+                        Icons.check,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
                     : null,
                 onTap: () async {
                   Navigator.pop(context);
-                  await LocaleService.instance.setLocale(code);
+                  await ThemeService.instance.setThemeMode(mode);
                 },
               );
             }),
@@ -190,6 +293,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _showLanguageSheet,
             ),
 
+            const Divider(height: 1),
+
+            ListTile(
+              leading: const Icon(Icons.dark_mode_outlined),
+              title: Text(l10n.themeTitle),
+              subtitle: Text(
+                _getCurrentThemeLabel(
+                  l10n,
+                  ThemeService.instance.themeNotifier.value,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right),
+              enabled: !_isBusy,
+              onTap: _showThemeSheet,
+            ),
+            
             const Divider(height: 24),
 
             // --- KHU VỰC 2: DỮ LIỆU & SAO LƯU ---

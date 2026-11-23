@@ -128,4 +128,14 @@ class DatabaseService {
       return savedItems;
     });
   }
+
+  // 9. Thu hồi dung lượng trống trong file SQLite (giúp file .db co gọn thực tế trên bộ nhớ máy)
+  Future<void> compactDatabase() async {
+    try {
+      final db = await instance.database;
+      await db.execute('VACUUM');
+    } catch (_) {
+      // Lệnh VACUUM không chạy được khi đang mở transaction -> bỏ qua êm ái nếu bận
+    }
+  }
 }

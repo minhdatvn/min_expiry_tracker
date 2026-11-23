@@ -1,23 +1,29 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import '../l10n/app_localizations.dart';
 
 class LocaleService {
   static final LocaleService instance = LocaleService._init();
   LocaleService._init();
 
-  // ValueNotifier đóng vai trò như "loa thông báo":
-  // - null: dùng ngôn ngữ mặc định theo điện thoại
-  // - Locale('en') hoặc Locale('vi'): ép hiển thị Tiếng Anh / Tiếng Việt
   final ValueNotifier<Locale?> localeNotifier = ValueNotifier<Locale?>(null);
 
-  // Đường dẫn file text nhỏ lưu lựa chọn ngôn ngữ trong thư mục riêng của app
+  // MỚI: Xác định ngôn ngữ đang thực sự hiển thị (kể cả khi đang để "Theo điện thoại")
+  Locale get effectiveLocale {
+    final code = localeNotifier.value?.languageCode ??
+        WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    return code == 'vi' ? const Locale('vi') : const Locale('en');
+  }
+
+  // MỚI: Lấy thẳng bộ từ điển mà không cần BuildContext (dùng cho NotifyService & CalendarService)
+  AppLocalizations get currentL10n => lookupAppLocalizations(effectiveLocale);
+
   Future<File> _getPrefFile() async {
     final dir = await getApplicationDocumentsDirectory();
     return File('${dir.path}/app_locale.txt');
   }
 
-  // Đọc lại ngôn ngữ đã lưu mỗi khi mở app (chạy 1 lần trong main.dart)
   Future<void> loadSavedLocale() async {
     try {
       final file = await _getPrefFile();
@@ -34,7 +40,6 @@ class LocaleService {
     }
   }
 
-  // Đổi ngôn ngữ và lưu xuống máy (truyền null nếu chọn "Theo điện thoại")
   Future<void> setLocale(String? languageCode) async {
     localeNotifier.value =
         languageCode == null ? null : Locale(languageCode);
@@ -42,8 +47,6 @@ class LocaleService {
     try {
       final file = await _getPrefFile();
       await file.writeAsString(languageCode ?? '');
-    } catch (_) {
-      // Nếu ghi file gặp lỗi thì giao diện vẫn đổi được trong phiên hiện tại
-    }
+    } catch (_) {}
   }
 }

@@ -3,10 +3,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../constants/app_constants.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 import '../services/database_service.dart';
+import '../widgets/alerts_section.dart';
+import '../widgets/tag_selector_section.dart';
 
 class AddEditScreen extends StatefulWidget {
   final HouseholdItem? existingItem;
@@ -24,23 +27,22 @@ class _AddEditScreenState extends State<AddEditScreen> {
   late final TextEditingController _paoValueController;
   late final TextEditingController _quantityController;
   late final TextEditingController _notesController;
-  late final TextEditingController _alertValueController;
 
-  // Lưu giá trị danh mục chuẩn trong SQLite, chỉ dịch phần chữ hiển thị
-  final List<String> _categories = ['Medicine', 'Cosmetics', 'Food', 'Other'];
   late String _selectedCategory;
   DateTime? _expiryDate;
   DateTime? _openedDate;
   late String _paoUnit;
 
+  // Khởi tạo bản sao có thể chỉnh sửa từ danh sách hằng số gốc
   String? _selectedOwner;
-  List<String> _availableOwners = ['Me', 'Family'];
+  List<String> _availableOwners =
+      List<String>.from(AppConstants.defaultOwners);
 
   String? _selectedLocation;
-  List<String> _availableLocations = ['Fridge', 'Medicine Box', 'Bathroom'];
+  List<String> _availableLocations =
+      List<String>.from(AppConstants.defaultLocations);
 
   late List<AlertMilestone> _alerts;
-  String _newAlertUnit = 'days';
 
   String? _imageBase64;
   Uint8List? _imageBytes;
@@ -60,9 +62,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
       text: item?.quantity?.toString() ?? '',
     );
     _notesController = TextEditingController(text: item?.notes ?? '');
-    _alertValueController = TextEditingController();
 
-    _selectedCategory = item?.category ?? 'Medicine';
+    _selectedCategory = item?.category ?? AppConstants.defaultCategories.first;
     _expiryDate = item?.expiryDate;
     _openedDate = item?.openedDate;
     _paoUnit = item?.paoUnit ?? 'months';
@@ -72,10 +73,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
     _alerts = item != null
         ? List<AlertMilestone>.from(item.alerts)
-        : [
-            const AlertMilestone(value: 30, unit: 'days'),
-            const AlertMilestone(value: 7, unit: 'days'),
-          ];
+        : List<AlertMilestone>.from(AppConstants.defaultAlerts);
     _alerts.sort((a, b) => b.totalHours.compareTo(a.totalHours));
 
     _imageBase64 = item?.imageBase64;
@@ -90,21 +88,19 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
     if (!mounted) return;
     setState(() {
-      final ownerSet = <String>{
+      _availableOwners = <String>{
         ..._availableOwners,
         ...savedOwners,
         if (_selectedOwner != null && _selectedOwner!.isNotEmpty)
           _selectedOwner!,
-      };
-      _availableOwners = ownerSet.toList();
+      }.toList();
 
-      final locationSet = <String>{
+      _availableLocations = <String>{
         ..._availableLocations,
         ...savedLocations,
         if (_selectedLocation != null && _selectedLocation!.isNotEmpty)
           _selectedLocation!,
-      };
-      _availableLocations = locationSet.toList();
+      }.toList();
     });
   }
 
@@ -114,7 +110,6 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _paoValueController.dispose();
     _quantityController.dispose();
     _notesController.dispose();
-    _alertValueController.dispose();
     super.dispose();
   }
 
@@ -124,9 +119,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickImage(
         source: source,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 70,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 65,
       );
 
       if (pickedFile == null || !mounted) return;
@@ -139,7 +134,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
         _imageBase64 = base64Encode(bytes);
       });
     } catch (_) {
-      // Nếu người dùng từ chối quyền Camera/Thư viện -> bỏ qua êm ái, không văng app
+      // Bỏ qua êm ái nếu thiết bị từ chối quyền Camera/Thư viện
     }
   }
 
@@ -240,14 +235,13 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
   }
 
-  // --- 3. HỘP THOẠI THÊM GIÁ TRỊ MỚI CHO CHỦ SỞ HỮU HOẶC VỊ TRÍ ---
+  // --- 3. HỘP THOẠI THÊM CHỦ SỞ HỮU / VỊ TRÍ ---
   Future<void> _showAddTagDialog({
     required String title,
     required String hintText,
     required bool isOwner,
   }) async {
     final l10n = AppLocalizations.of(context)!;
-    // Dùng biến String đơn giản thay cho TextEditingController -> không bao giờ rò rỉ RAM
     String inputText = '';
 
     final String? newValue = await showDialog<String>(
@@ -302,35 +296,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
   }
 
-  // --- 4. THÊM MỐC CẢNH BÁO ---
-  void _addAlertMilestone() {
-    final l10n = AppLocalizations.of(context)!;
-    final value = int.tryParse(_alertValueController.text.trim());
-    if (value == null || value <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.invalidPositiveNumber)),
-      );
-      return;
-    }
-
-    final alreadyExists = _alerts.any(
-      (a) => a.value == value && a.unit == _newAlertUnit,
-    );
-    if (alreadyExists) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.alertAlreadyExists)),
-      );
-      return;
-    }
-
-    setState(() {
-      _alerts.add(AlertMilestone(value: value, unit: _newAlertUnit));
-      _alerts.sort((a, b) => b.totalHours.compareTo(a.totalHours));
-      _alertValueController.clear();
-    });
-  }
-
-  // --- 5. LƯU VẬT PHẨM ---
+  // --- 4. LƯU VẬT PHẨM ---
   void _saveItem() {
     final l10n = AppLocalizations.of(context)!;
     if (!_formKey.currentState!.validate()) return;
@@ -363,7 +329,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     Navigator.pop(context, savedItem);
   }
 
-  // --- 6. XÁC NHẬN XÓA ---
+  // --- 5. XÁC NHẬN XÓA ---
   Future<void> _confirmDelete() async {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
@@ -424,7 +390,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       width: 112,
                       height: 112,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.grey.shade400),
                       ),
@@ -434,6 +400,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                               child: Image.memory(
                                 _imageBytes!,
                                 fit: BoxFit.cover,
+                                gaplessPlayback: true,
                               ),
                             )
                           : Column(
@@ -487,7 +454,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                           labelText: l10n.categoryLabel,
                           border: const OutlineInputBorder(),
                         ),
-                        items: _categories.map((cat) {
+                        items: AppConstants.defaultCategories.map((cat) {
                           return DropdownMenuItem(
                             value: cat,
                             child: Text(localizeCategory(l10n, cat)),
@@ -531,7 +498,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                         : l10n.tapToSelectDate,
                     style: TextStyle(
                       color: _expiryDate != null
-                          ? Colors.black87
+                          ? Theme.of(context).colorScheme.onSurface
                           : Colors.red.shade700,
                       fontWeight: FontWeight.w500,
                     ),
@@ -657,245 +624,47 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 ),
                 const SizedBox(height: 22),
 
-                // === KHU VỰC 4: CHỦ SỞ HỮU ===
-                Text(
-                  l10n.ownerSectionTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                // === KHU VỰC 4: CHỦ SỞ HỮU (DÙNG WIDGET TÁI SỬ DỤNG) ===
+                TagSelectorSection(
+                  title: l10n.ownerSectionTitle,
+                  options: _availableOwners,
+                  selectedValue: _selectedOwner,
+                  labelBuilder: (owner) => localizeOwner(l10n, owner),
+                  addButtonLabel: l10n.newOwner,
+                  addButtonIcon: Icons.add,
+                  onSelected: (val) => setState(() => _selectedOwner = val),
+                  onAddPressed: () => _showAddTagDialog(
+                    title: l10n.addNewOwnerTitle,
+                    hintText: l10n.addNewOwnerHint,
+                    isOwner: true,
                   ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    ..._availableOwners.map((owner) {
-                      final isSelected = _selectedOwner == owner;
-                      return ChoiceChip(
-                        label: Text(localizeOwner(l10n, owner)), // ĐÃ DỊCH
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedOwner = selected ? owner : null;
-                          });
-                        },
-                      );
-                    }),
-                    ActionChip(
-                      avatar: const Icon(Icons.add, size: 18),
-                      label: Text(l10n.newOwner),
-                      onPressed: () => _showAddTagDialog(
-                        title: l10n.addNewOwnerTitle,
-                        hintText: l10n.addNewOwnerHint,
-                        isOwner: true,
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 18),
 
-                // === KHU VỰC 5: VỊ TRÍ CẤT GIỮ ===
-                Text(
-                  l10n.locationSectionTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                // === KHU VỰC 5: VỊ TRÍ CẤT GIỮ (DÙNG WIDGET TÁI SỬ DỤNG) ===
+                TagSelectorSection(
+                  title: l10n.locationSectionTitle,
+                  options: _availableLocations,
+                  selectedValue: _selectedLocation,
+                  labelBuilder: (loc) => localizeLocation(l10n, loc),
+                  addButtonLabel: l10n.newLocation,
+                  addButtonIcon: Icons.add_location_alt_outlined,
+                  onSelected: (val) => setState(() => _selectedLocation = val),
+                  onAddPressed: () => _showAddTagDialog(
+                    title: l10n.addNewLocationTitle,
+                    hintText: l10n.addNewLocationHint,
+                    isOwner: false,
                   ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    ..._availableLocations.map((loc) {
-                      final isSelected = _selectedLocation == loc;
-                      return ChoiceChip(
-                        label: Text(localizeLocation(l10n, loc)), // ĐÃ DỊCH
-                        selected: isSelected,
-                        onSelected: (selected) {
-                          setState(() {
-                            _selectedLocation = selected ? loc : null;
-                          });
-                        },
-                      );
-                    }),
-                    ActionChip(
-                      avatar: const Icon(
-                        Icons.add_location_alt_outlined,
-                        size: 18,
-                      ),
-                      label: Text(l10n.newLocation),
-                      onPressed: () => _showAddTagDialog(
-                        title: l10n.addNewLocationTitle,
-                        hintText: l10n.addNewLocationHint,
-                        isOwner: false,
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 22),
 
-                // === KHU VỰC 6: THÔNG BÁO TÙY CHỌN + LỊCH ĐIỆN THOẠI ===
-                Text(
-                  l10n.alertsSectionTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
+                // === KHU VỰC 6: MỐC CẢNH BÁO & LỊCH ĐIỆN THOẠI ===
+                AlertsSection(
+                  alerts: _alerts,
+                  onChanged: (updatedAlerts) {
+                    setState(() => _alerts = updatedAlerts);
+                  },
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  l10n.alertsSectionHint,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 10),
-
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: _alertValueController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: l10n.beforeLabel,
-                          hintText: '3',
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 3,
-                      child: DropdownButtonFormField<String>(
-                        value: _newAlertUnit,
-                        decoration: InputDecoration(
-                          labelText: l10n.unitLabel,
-                          border: const OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'hours',
-                            child: Text(l10n.unitHours),
-                          ),
-                          DropdownMenuItem(
-                            value: 'days',
-                            child: Text(l10n.unitDays),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _newAlertUnit = value);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed: _addAlertMilestone,
-                      icon: const Icon(Icons.add),
-                      tooltip: l10n.addAlertTooltip,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-
-                if (_alerts.isEmpty)
-                  Text(
-                    l10n.noAlertsSet,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey.shade600,
-                    ),
-                  )
-                else
-                  Column(
-                    children: _alerts.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final alert = entry.value;
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade50,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.grey.shade300),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              alert.unit == 'hours'
-                                  ? Icons.schedule
-                                  : Icons.notifications_outlined,
-                              size: 18,
-                              color: Colors.teal.shade700,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                localizeAlertLabel(l10n, alert),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: () {
-                                setState(() {
-                                  _alerts[index] = alert.copyWith(
-                                    addToCalendar: !alert.addToCalendar,
-                                  );
-                                });
-                              },
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Checkbox(
-                                    value: alert.addToCalendar,
-                                    visualDensity: VisualDensity.compact,
-                                    materialTapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                    onChanged: (checked) {
-                                      setState(() {
-                                        _alerts[index] = alert.copyWith(
-                                          addToCalendar: checked ?? false,
-                                        );
-                                      });
-                                    },
-                                  ),
-                                  Text(
-                                    l10n.addToCalendar,
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  const SizedBox(width: 4),
-                                ],
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 18),
-                              visualDensity: VisualDensity.compact,
-                              tooltip: l10n.removeAlertTooltip,
-                              onPressed: () {
-                                setState(() => _alerts.removeAt(index));
-                              },
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
-                  ),
                 const SizedBox(height: 18),
 
                 // === KHU VỰC 7: GHI CHÚ ===
@@ -928,7 +697,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           decoration: BoxDecoration(
             color: Theme.of(context).scaffoldBackgroundColor,
-            border: Border(top: BorderSide(color: Colors.grey.shade300)),
+            border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
           ),
           child: SizedBox(
             height: 48,

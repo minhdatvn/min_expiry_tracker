@@ -1,8 +1,11 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz_data;
+// MỚI: Dùng dữ liệu múi giờ 10 năm thay vì latest_all -> nhẹ dung lượng APK và tiết kiệm RAM khởi động
+import 'package:timezone/data/latest_10y.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
-import '../l10n/l10n_helpers.dart'; // MỚI: Hỗ trợ đóng gói nội dung Log đa ngôn ngữ
+import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
+import 'database_service.dart';
+import 'locale_service.dart';
 import 'log_service.dart';
 
 class NotifyService {
@@ -40,10 +43,12 @@ class NotifyService {
   }
 
   Future<void> showTestNotification() async {
+    final l10n = LocaleService.instance.currentL10n;
+
     await _plugin.show(
       id: 0,
-      title: 'MinExpiryTracker is ready!',
-      body: 'Offline expiry reminders are working properly on your phone.',
+      title: l10n.testNotifyTitle,
+      body: l10n.testNotifyBody,
       notificationDetails: _notificationDetails,
     );
     await LogService.instance.addLog(
@@ -61,12 +66,22 @@ class NotifyService {
     }
   }
 
-  Future<void> scheduleItemAlerts(HouseholdItem item, {int? overrideId}) async {
+  Future<void> scheduleItemAlerts(
+    HouseholdItem item, {
+    int? overrideId,
+    bool cancelExisting = true,
+    bool logAction = true,
+  }) async {
     final int? itemId = overrideId ?? item.id;
     if (itemId == null) return;
 
-    await cancelItemAlerts(itemId);
+    // Khi vừa chạy cancelAllAlerts() trước đó -> truyền cancelExisting: false để đỡ truy vấn lặp
+    if (cancelExisting) {
+      await cancelItemAlerts(itemId);
+    }
 
+    final l10n = LocaleService.instance.currentL10n;
+    final categoryLabel = localizeCategory(l10n, item.category);
     final now = DateTime.now();
     int scheduledCount = 0;
 
@@ -82,17 +97,17 @@ class NotifyService {
       final String bodyText;
       if (alert.unit == 'hours') {
         bodyText = alert.value == 1
-            ? '${item.name} expires in 1 hour!'
-            : '${item.name} expires in ${alert.value} hours!';
+            ? l10n.expiresInOneHour(item.name)
+            : l10n.expiresInHours(item.name, alert.value);
       } else {
         bodyText = alert.value == 1
-            ? '${item.name} expires tomorrow!'
-            : '${item.name} expires in ${alert.value} days.';
+            ? l10n.expiresTomorrow(item.name)
+            : l10n.expiresInDays(item.name, alert.value);
       }
 
       await _plugin.zonedSchedule(
         id: notificationId,
-        title: 'Expiry Alert: ${item.category}',
+        title: l10n.expiryAlertTitle(categoryLabel),
         body: bodyText,
         scheduledDate: tzScheduledDate,
         notificationDetails: _notificationDetails,
@@ -101,7 +116,7 @@ class NotifyService {
       scheduledCount++;
     }
 
-    if (scheduledCount > 0) {
+    if (scheduledCount > 0 && logAction) {
       await LogService.instance.addLog(
         'NOTIFY',
         encodeLogMessage('logRemindersScheduled', {
@@ -109,6 +124,23 @@ class NotifyService {
           'name': item.name,
         }),
       );
+    }
+  }
+
+  // MỚI: Tự đặt lại toàn bộ thông báo đang chờ sang ngôn ngữ hiện tại (dùng khi đổi ngôn ngữ)
+  Future<void> rescheduleAllAlerts() async {
+    try {
+      final items = await DatabaseService.instance.getAllItems();
+      await cancelAllAlerts();
+      for (final item in items) {
+        await scheduleItemAlerts(
+          item,
+          cancelExisting: false,
+          logAction: false,
+        );
+      }
+    } catch (_) {
+      // Giữ thao tác đổi ngôn ngữ luôn mượt, không bị gián đoạn nếu có lỗi phụ
     }
   }
 

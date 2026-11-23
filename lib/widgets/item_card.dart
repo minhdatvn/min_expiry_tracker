@@ -13,33 +13,38 @@ class ItemCard extends StatelessWidget {
     this.onTap,
   });
 
-  // 1. Chọn màu sắc cảnh báo
-  Color _getStatusColor() {
+  // 1. Chọn màu sắc cảnh báo (nhận thêm biến isDark để tự chỉnh độ sáng ở Chế độ tối)
+  Color _getStatusColor(bool isDark) {
+    final redCritical = isDark ? Colors.red.shade300 : Colors.red.shade700;
+    final redSoon = isDark ? Colors.red.shade300 : Colors.red.shade600;
+    final orangeWarn = isDark ? Colors.orange.shade300 : Colors.orange.shade800;
+    final greenSafe = isDark ? Colors.green.shade300 : Colors.green.shade700;
+
     if (item.isHourlyPao) {
       final remaining = item.timeRemaining;
       if (remaining.isNegative || remaining.inHours < 3) {
-        return Colors.red.shade700;
+        return redCritical;
       }
       if (remaining.inHours < 12) {
-        return Colors.orange.shade800;
+        return orangeWarn;
       }
-      return Colors.green.shade700;
+      return greenSafe;
     }
 
     final days = item.daysRemaining;
-    if (days <= 0) return Colors.red.shade700;
+    if (days <= 0) return redCritical;
 
     if (item.alertDays.isNotEmpty) {
       final sortedAlerts = List<int>.from(item.alertDays)..sort();
       if (sortedAlerts.length >= 2 && days <= sortedAlerts.first) {
-        return Colors.red.shade600;
+        return redSoon;
       }
       if (days <= sortedAlerts.last) {
-        return Colors.orange.shade800;
+        return orangeWarn;
       }
     }
 
-    return Colors.green.shade700;
+    return greenSafe;
   }
 
   // 2. Nhãn đếm ngược góc phải (song ngữ)
@@ -80,8 +85,10 @@ class ItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
-    final statusColor = _getStatusColor();
+    final statusColor = _getStatusColor(isDark);
     final imageBytes = item.imageBytes; // Lấy 1 lần duy nhất từ bộ nhớ đệm
     final formattedDate = formatDateByLocale(
       context,
@@ -113,10 +120,10 @@ class ItemCard extends StatelessWidget {
                         imageBytes,
                         width: 56,
                         height: 56,
-                        // Nén kích thước ảnh giải mã trong RAM khớp đúng ô 56x56 (tỉ lệ màn hình 3x = 168px)
+                        // Nén ảnh trong RAM khớp đúng ô 56x56 (tỉ lệ màn hình 3x = 168px)
                         cacheWidth: 168,
                         fit: BoxFit.cover,
-                        // Giữ nguyên khung hình cũ khi vẽ lại -> không bị chớp trắng khi gõ tìm kiếm
+                        // Giữ nguyên khung hình cũ khi vẽ lại -> không bị chớp trắng
                         gaplessPlayback: true,
                       )
                     : Container(
@@ -158,7 +165,10 @@ class ItemCard extends StatelessWidget {
                         if (item.location != null && item.location!.isNotEmpty)
                           localizeLocation(l10n, item.location!),
                       ].join(' • '),
-                      style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -171,7 +181,7 @@ class ItemCard extends StatelessWidget {
                               ? Icons.access_time
                               : Icons.event_outlined,
                           size: 14,
-                          color: Colors.grey.shade600,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -179,7 +189,7 @@ class ItemCard extends StatelessWidget {
                             l10n.expLabel(formattedDate),
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.grey.shade600,
+                              color: colorScheme.onSurfaceVariant,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -192,7 +202,7 @@ class ItemCard extends StatelessWidget {
                               vertical: 1,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: colorScheme.secondaryContainer,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -200,7 +210,8 @@ class ItemCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.blue.shade700,
+                                // Cặp màu đi liền với secondaryContainer -> luôn rõ nét ở cả Sáng & Tối
+                                color: colorScheme.onSecondaryContainer,
                               ),
                             ),
                           ),
@@ -210,7 +221,9 @@ class ItemCard extends StatelessWidget {
                           Icon(
                             Icons.calendar_month,
                             size: 14,
-                            color: Colors.purple.shade600,
+                            color: isDark
+                                ? Colors.purple.shade300
+                                : Colors.purple.shade600,
                           ),
                         ],
                       ],
@@ -223,7 +236,7 @@ class ItemCard extends StatelessWidget {
                           Icon(
                             Icons.notes_outlined,
                             size: 13,
-                            color: Colors.grey.shade500,
+                            color: colorScheme.onSurfaceVariant,
                           ),
                           const SizedBox(width: 4),
                           Expanded(
@@ -232,7 +245,7 @@ class ItemCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 11.5,
                                 fontStyle: FontStyle.italic,
-                                color: Colors.grey.shade600,
+                                color: colorScheme.onSurfaceVariant,
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

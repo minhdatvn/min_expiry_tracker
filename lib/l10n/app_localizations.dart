@@ -919,6 +919,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Version 1.0.0 • Offline Mode'**
   String get versionSubtitle;
+
+  /// No description provided for @testNotifyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'MinExpiryTracker is ready!'**
+  String get testNotifyTitle;
+
+  /// No description provided for @testNotifyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline expiry reminders are working properly on your phone.'**
+  String get testNotifyBody;
+
+  /// No description provided for @expiryAlertTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Expiry Alert: {category}'**
+  String expiryAlertTitle(String category);
+
+  /// No description provided for @expiresInOneHour.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} expires in 1 hour!'**
+  String expiresInOneHour(String name);
+
+  /// No description provided for @expiresInHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} expires in {count} hours!'**
+  String expiresInHours(String name, int count);
+
+  /// No description provided for @expiresTomorrow.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} expires tomorrow!'**
+  String expiresTomorrow(String name);
+
+  /// No description provided for @expiresInDays.
+  ///
+  /// In en, this message translates to:
+  /// **'{name} expires in {count} days.'**
+  String expiresInDays(String name, int count);
+
+  /// No description provided for @calItemLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Item: {name} ({category})'**
+  String calItemLine(String name, String category);
+
+  /// No description provided for @calExpiresLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Expires: {date}'**
+  String calExpiresLine(String date);
+
+  /// No description provided for @calReminderLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Reminder: {reminder}'**
+  String calReminderLine(String reminder);
+
+  /// No description provided for @calOwnerLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner: {owner}'**
+  String calOwnerLine(String owner);
+
+  /// No description provided for @calLocationLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Location: {location}'**
+  String calLocationLine(String location);
+
+  /// No description provided for @calNotesLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes: {notes}'**
+  String calNotesLine(String notes);
+
+  /// No description provided for @appearanceSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearanceSection;
+
+  /// No description provided for @themeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get themeTitle;
+
+  /// No description provided for @themeSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'System Default'**
+  String get themeSystem;
+
+  /// No description provided for @themeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get themeLight;
+
+  /// No description provided for @themeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get themeDark;
+
+  /// No description provided for @filterCategory.
+  ///
+  /// In en, this message translates to:
+  /// **'Category'**
+  String get filterCategory;
+
+  /// No description provided for @filterOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get filterOwner;
+
+  /// No description provided for @filterLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get filterLocation;
 }
 
 class _AppLocalizationsDelegate

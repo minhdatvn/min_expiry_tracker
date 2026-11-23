@@ -157,5 +157,27 @@
   "restoreSuccess": "Đã khôi phục thành công {count} vật phẩm!",
   "restoreError": "Không thể khôi phục: Vui lòng chọn đúng file sao lưu .json của MinExpiryTracker.",
   "aboutSection": "Thông tin ứng dụng",
-  "versionSubtitle": "Phiên bản 1.0.0 • Chế độ Offline"
+  "versionSubtitle": "Phiên bản 1.0.0 • Chế độ Offline",
+  "testNotifyTitle": "MinExpiryTracker đã sẵn sàng!",
+  "testNotifyBody": "Thông báo nhắc hạn sử dụng offline đang hoạt động ổn định trên điện thoại.",
+  "expiryAlertTitle": "Cảnh báo hết hạn: {category}",
+  "expiresInOneHour": "{name} sẽ hết hạn sau 1 giờ nữa!",
+  "expiresInHours": "{name} sẽ hết hạn sau {count} giờ nữa!",
+  "expiresTomorrow": "{name} sẽ hết hạn vào ngày mai!",
+  "expiresInDays": "{name} sẽ hết hạn sau {count} ngày nữa.",
+  "calItemLine": "Vật phẩm: {name} ({category})",
+  "calExpiresLine": "Hết hạn: {date}",
+  "calReminderLine": "Nhắc nhở: {reminder}",
+  "calOwnerLine": "Chủ sở hữu: {owner}",
+  "calLocationLine": "Vị trí: {location}",
+  "calNotesLine": "Ghi chú: {notes}",
+
+  "appearanceSection": "Giao diện",
+  "themeTitle": "Chế độ hiển thị",
+  "themeSystem": "Theo điện thoại",
+  "themeLight": "Sáng",
+  "themeDark": "Tối",
+  "filterCategory": "Danh mục",
+  "filterOwner": "Chủ sở hữu",
+  "filterLocation": "Vị trí"
 }

@@ -1,3 +1,4 @@
+import 'locale_service.dart';
 import 'package:device_calendar/device_calendar.dart';
 import 'package:intl/intl.dart';
 import 'package:timezone/timezone.dart' as tz;
@@ -5,10 +6,10 @@ import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 import 'log_service.dart';
 
-// MỚI: Gói kết quả đồng bộ Lịch để báo ngược trạng thái lỗi ra màn hình chính
+// Gói kết quả đồng bộ Lịch để báo ngược trạng thái lỗi ra màn hình chính
 class CalendarSyncResult {
   final List<AlertMilestone> alerts;
-  final String? errorKey; // null nếu thành công hoặc không yêu cầu đồng bộ Lịch
+  final String? errorKey; // null nếu thành công hoặc chỉ đang bỏ tick Lịch
 
   const CalendarSyncResult({
     required this.alerts,
@@ -18,7 +19,6 @@ class CalendarSyncResult {
   bool get hasError => errorKey != null;
 }
 
-// Lớp nội bộ chứa kết quả tìm kiếm sổ Lịch khả dụng
 class _CalendarLookupResult {
   final String? calendarId;
   final String? errorKey;
@@ -47,8 +47,8 @@ class CalendarService {
 
     return type.contains('local') ||
         type.contains('samsung') ||
-        type.contains('osp') || // Tài khoản Samsung (com.osp.app.signin)
-        type.contains('sec') || // Lịch nội bộ Samsung (vnd.sec.contact.phone)
+        type.contains('osp') ||
+        type.contains('sec') ||
         type.contains('phone') ||
         accName.contains('local') ||
         accName.contains('phone') ||
@@ -58,7 +58,6 @@ class CalendarService {
         calName.contains('samsung');
   }
 
-  // Chọn 1 sổ Lịch tốt nhất trong nhóm (ưu tiên sổ được đánh dấu isDefault == true)
   Calendar _pickDefaultOrFirst(List<Calendar> list) {
     return list.firstWhere(
       (c) => c.isDefault == true,
@@ -66,16 +65,13 @@ class CalendarService {
     );
   }
 
-  // Chọn sổ Lịch theo thứ tự ưu tiên:
-  // 1. Lịch mặc định / Samsung / Lịch cục bộ -> 2. Google Calendar -> 3. Lịch khả dụng khác
+  // Chọn sổ Lịch ưu tiên: Lịch máy/Samsung -> Google Calendar -> Lịch khả dụng khác
   Calendar _pickPreferredCalendar(List<Calendar> writable) {
-    // Ưu tiên 1A: Lịch Samsung / Lịch cục bộ của máy
     final deviceCalendars = writable.where(_isDeviceOrSamsungCalendar).toList();
     if (deviceCalendars.isNotEmpty) {
       return _pickDefaultOrFirst(deviceCalendars);
     }
 
-    // Ưu tiên 1B: Lịch mặc định của hãng điện thoại khác (không phải Google)
     final defaultNonGoogle = writable
         .where((c) => c.isDefault == true && !_isGoogleCalendar(c))
         .toList();
@@ -83,17 +79,14 @@ class CalendarService {
       return defaultNonGoogle.first;
     }
 
-    // Ưu tiên 2: Google Calendar
     final googleCalendars = writable.where(_isGoogleCalendar).toList();
     if (googleCalendars.isNotEmpty) {
       return _pickDefaultOrFirst(googleCalendars);
     }
 
-    // Ưu tiên 3: Bất kỳ Lịch nào khác có quyền ghi (Outlook, Exchange...)
     return _pickDefaultOrFirst(writable);
   }
 
-  // Dự phòng: Tự tạo 1 sổ Lịch cục bộ nếu máy Samsung chưa khởi tạo sẵn sổ lịch nào
   Future<String?> _createLocalFallbackCalendar() async {
     try {
       final result = await _plugin.createCalendar(
@@ -103,19 +96,22 @@ class CalendarService {
       if (result.isSuccess && result.data != null && result.data!.isNotEmpty) {
         return result.data;
       }
-    } catch (_) {
-      // Một số máy Android hạn chế tạo sổ lịch cục bộ -> bỏ qua để báo lỗi chuẩn
-    }
+    } catch (_) {}
     return null;
   }
 
-  // Tìm ID của Lịch khả dụng kèm mã lỗi cụ thể nếu thất bại
+  // Tìm ID của Lịch khả dụng (thêm cờ logFailure để không ghi log lỗi khi chỉ đang dọn sự kiện cũ)
   Future<_CalendarLookupResult> _getWritableCalendarId({
     bool allowCreateFallback = true,
+    bool logFailure = true,
   }) async {
     try {
       var permissionResult = await _plugin.hasPermissions();
       if (permissionResult.isSuccess && permissionResult.data != true) {
+        // Nếu không phải thao tác tạo mới (logFailure == false) thì không bật hộp thoại xin quyền
+        if (!logFailure) {
+          return const _CalendarLookupResult();
+        }
         permissionResult = await _plugin.requestPermissions();
         if (!permissionResult.isSuccess || permissionResult.data != true) {
           await LogService.instance.addLog(
@@ -144,15 +140,65 @@ class CalendarService {
           return _CalendarLookupResult(calendarId: localId);
         }
       }
+    } catch (_) {}
+
+    if (logFailure) {
+      await LogService.instance.addLog(
+        'CALENDAR',
+        encodeLogMessage('logCalendarNoWritable'),
+      );
+      return const _CalendarLookupResult(errorKey: 'logCalendarNoWritable');
+    }
+    return const _CalendarLookupResult();
+  }
+
+  // Hàm dọn sự kiện cũ an toàn tuyệt đối (không bao giờ ném lỗi ra giao diện)
+  Future<int> _deleteSavedEvents(
+    List<AlertMilestone> alerts, {
+    String? fallbackCalendarId,
+  }) async {
+    final alertsWithIds = alerts
+        .where((a) => a.calendarEventId != null && a.calendarEventId!.isNotEmpty)
+        .toList();
+    if (alertsWithIds.isEmpty) return 0;
+
+    try {
+      final perm = await _plugin.hasPermissions();
+      if (!perm.isSuccess || perm.data != true) return 0;
     } catch (_) {
-      // Nếu hệ thống Lịch Android trả về lỗi ngoài dự kiến -> chuyển về báo lỗi chuẩn
+      return 0;
     }
 
-    await LogService.instance.addLog(
-      'CALENDAR',
-      encodeLogMessage('logCalendarNoWritable'),
-    );
-    return const _CalendarLookupResult(errorKey: 'logCalendarNoWritable');
+    String? sharedFallbackId = fallbackCalendarId;
+    int removedCount = 0;
+
+    for (final alert in alertsWithIds) {
+      String? targetCalId = alert.calendarId;
+      if (targetCalId == null || targetCalId.isEmpty) {
+        sharedFallbackId ??= (await _getWritableCalendarId(
+          allowCreateFallback: false,
+          logFailure: false,
+        ))
+            .calendarId;
+        targetCalId = sharedFallbackId;
+      }
+
+      if (targetCalId == null || targetCalId.isEmpty) continue;
+
+      try {
+        final res = await _plugin.deleteEvent(
+          targetCalId,
+          alert.calendarEventId!,
+        );
+        if (res.isSuccess || res.data == true) {
+          removedCount++;
+        }
+      } catch (_) {
+        // Bỏ qua êm ái nếu sự kiện đã bị người dùng xóa thủ công trên app Lịch
+      }
+    }
+
+    return removedCount;
   }
 
   // Đồng bộ tự động các mốc được tick "Thêm vào Lịch" của 1 vật phẩm
@@ -161,16 +207,44 @@ class CalendarService {
     List<AlertMilestone>? previousAlerts,
   }) async {
     final hasOldEvents = previousAlerts != null &&
-        previousAlerts.any((a) => a.calendarEventId != null);
+        previousAlerts.any(
+          (a) => a.calendarEventId != null && a.calendarEventId!.isNotEmpty,
+        );
     final hasNewRequests = item.alerts.any((a) => a.addToCalendar);
 
-    // Nếu không có lịch cũ cần xóa và cũng không tick mốc mới nào -> thoát êm
+    // Trường hợp 1: Không có lịch cũ và cũng không tick mới -> thoát êm
     if (!hasOldEvents && !hasNewRequests) {
       return CalendarSyncResult(alerts: item.alerts);
     }
 
+    // Trường hợp 2 (ĐÃ SỬA LOGIC): Người dùng BỎ DẤU TICK tất cả mốc Lịch
+    // -> Cố gắng dọn sự kiện cũ trong âm thầm, TUYỆT ĐỐI không báo lỗi lên màn hình
+    if (!hasNewRequests) {
+      if (previousAlerts != null) {
+        final removedCount = await _deleteSavedEvents(previousAlerts);
+        if (removedCount > 0) {
+          await LogService.instance.addLog(
+            'CALENDAR',
+            encodeLogMessage('logCalendarRemoved', {
+              'count': removedCount,
+              'name': item.name,
+            }),
+          );
+        }
+      }
+
+      return CalendarSyncResult(
+        alerts: item.alerts
+            .map((a) => a.copyWith(clearCalendarEventId: true))
+            .toList(),
+        errorKey: null,
+      );
+    }
+
+    // Trường hợp 3: Người dùng CÓ tick ít nhất 1 mốc muốn ghi lên Lịch
     final lookup = await _getWritableCalendarId(
-      allowCreateFallback: hasNewRequests,
+      allowCreateFallback: true,
+      logFailure: true,
     );
 
     if (lookup.calendarId == null) {
@@ -184,21 +258,18 @@ class CalendarService {
 
     final calendarId = lookup.calendarId!;
 
-    // Bước A: Xóa các sự kiện cũ (bỏ qua êm nếu người dùng đã tự xóa sự kiện trên Lịch trước đó)
+    // Xóa các sự kiện cũ của lần lưu trước (nếu có) trước khi tạo bộ sự kiện mới
     if (previousAlerts != null) {
-      for (final oldAlert in previousAlerts) {
-        if (oldAlert.calendarEventId != null) {
-          try {
-            await _plugin.deleteEvent(calendarId, oldAlert.calendarEventId!);
-          } catch (_) {}
-        }
-      }
+      await _deleteSavedEvents(previousAlerts, fallbackCalendarId: calendarId);
     }
 
-    // Bước B: Tạo sự kiện mới cho các mốc được đánh dấu tick
     final List<AlertMilestone> updatedAlerts = [];
     final now = DateTime.now();
-    final dateFmt = DateFormat('MMM dd, yyyy HH:mm');
+    // Lấy từ điển & định dạng ngày theo ngôn ngữ hiện tại (VN: dd/MM/yyyy, EN: MMM dd, yyyy)
+    final l10n = LocaleService.instance.currentL10n;
+    final isVi = LocaleService.instance.effectiveLocale.languageCode == 'vi';
+    final dateFmt = DateFormat(isVi ? 'dd/MM/yyyy HH:mm' : 'MMM dd, yyyy HH:mm');
+    final categoryLabel = localizeCategory(l10n, item.category);
     String? eventErrorKey;
 
     for (final alert in item.alerts) {
@@ -223,20 +294,23 @@ class CalendarService {
 
       final tzStart = tz.TZDateTime.from(alertTime, tz.local);
       final tzEnd = tzStart.add(const Duration(minutes: 30));
+      final alertLabel = localizeAlertLabel(l10n, alert);
 
       final details = <String>[
-        'Item: ${item.name} (${item.category})',
-        'Expires: ${dateFmt.format(item.effectiveExpiryDate)}',
-        'Reminder: ${alert.label}',
-        if (item.owner != null && item.owner!.isNotEmpty) 'Owner: ${item.owner}',
+        l10n.calItemLine(item.name, categoryLabel),
+        l10n.calExpiresLine(dateFmt.format(item.effectiveExpiryDate)),
+        l10n.calReminderLine(alertLabel),
+        if (item.owner != null && item.owner!.isNotEmpty)
+          l10n.calOwnerLine(localizeOwner(l10n, item.owner!)),
         if (item.location != null && item.location!.isNotEmpty)
-          'Location: ${item.location}',
-        if (item.notes != null && item.notes!.isNotEmpty) 'Notes: ${item.notes}',
+          l10n.calLocationLine(localizeLocation(l10n, item.location!)),
+        if (item.notes != null && item.notes!.isNotEmpty)
+          l10n.calNotesLine(item.notes!),
       ].join('\n');
 
       final event = Event(
         calendarId,
-        title: '[MinExpiry] ${item.name} (${alert.label})',
+        title: '[MinExpiry] ${item.name} ($alertLabel)',
         description: details,
         start: tzStart,
         end: tzEnd,
@@ -245,8 +319,22 @@ class CalendarService {
 
       try {
         final result = await _plugin.createOrUpdateEvent(event);
-        if (result?.isSuccess == true && result?.data != null) {
-          updatedAlerts.add(alert.copyWith(calendarEventId: result!.data));
+
+        // ĐÃ SỬA: Coi là thành công nếu plugin báo isSuccess HOẶC đã trả về mã sự kiện hợp lệ
+        final String? createdEventId =
+            (result?.data != null && result!.data!.trim().isNotEmpty)
+                ? result.data!.trim()
+                : null;
+        final bool isCreated =
+            (result?.isSuccess == true) || createdEventId != null;
+
+        if (isCreated) {
+          updatedAlerts.add(
+            alert.copyWith(
+              calendarEventId: createdEventId,
+              calendarId: createdEventId != null ? calendarId : null,
+            ),
+          );
           await LogService.instance.addLog(
             'CALENDAR',
             encodeLogMessage('logCalendarAdded', {
@@ -281,24 +369,7 @@ class CalendarService {
 
   // Xóa toàn bộ sự kiện Lịch gắn với 1 vật phẩm (dùng khi xóa món đồ)
   Future<void> deleteItemCalendarEvents(HouseholdItem item) async {
-    final eventIds = item.alerts
-        .map((a) => a.calendarEventId)
-        .whereType<String>()
-        .toList();
-
-    if (eventIds.isEmpty) return;
-
-    final lookup = await _getWritableCalendarId(allowCreateFallback: false);
-    if (lookup.calendarId == null) return;
-
-    int removedCount = 0;
-    for (final eventId in eventIds) {
-      try {
-        await _plugin.deleteEvent(lookup.calendarId!, eventId);
-        removedCount++;
-      } catch (_) {}
-    }
-
+    final removedCount = await _deleteSavedEvents(item.alerts);
     if (removedCount > 0) {
       await LogService.instance.addLog(
         'CALENDAR',

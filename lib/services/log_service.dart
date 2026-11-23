@@ -73,5 +73,6 @@ class LogService {
   Future<void> clearLogs() async {
     final db = await DatabaseService.instance.database;
     await db.delete('app_logs');
+    await DatabaseService.instance.compactDatabase(); // Thu hồi dung lượng trống sau khi xóa sạch Log
   }
 }

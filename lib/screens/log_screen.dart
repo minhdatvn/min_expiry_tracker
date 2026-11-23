@@ -1,3 +1,4 @@
+import '../constants/app_constants.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../l10n/app_localizations.dart';
@@ -16,17 +17,6 @@ class _LogScreenState extends State<LogScreen> {
   List<AppLog> _logs = [];
   bool _isLoading = true;
   String _selectedAction = 'All';
-
-  final List<String> _actionFilters = const [
-    'All',
-    'ADD',
-    'UPDATE',
-    'DELETE',
-    'NOTIFY',
-    'CALENDAR',
-    'BACKUP',
-    'ERROR',
-  ];
 
   @override
   void initState() {
@@ -144,10 +134,10 @@ class _LogScreenState extends State<LogScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                itemCount: _actionFilters.length,
+                itemCount: AppConstants.logActionFilters.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
-                  final action = _actionFilters[index];
+                  final action = AppConstants.logActionFilters[index];
                   final count = _countByAction(action);
                   final labelText = localizeLogAction(l10n, action);
 

@@ -1,22 +1,23 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-// --- MỚI: ĐỐI TƯỢNG MỐC CẢNH BÁO THÔNG MINH ---
-// Mỗi mốc không chỉ là 1 con số đơn thuần mà lưu đủ: Số + Đơn vị + Có thêm Lịch không + Mã sự kiện Lịch
+// --- ĐỐI TƯỢNG MỐC CẢNH BÁO THÔNG MINH ---
 class AlertMilestone {
   final int value;               // Con số (VD: 1, 3, 6, 30)
   final String unit;             // 'days' hoặc 'hours'
   final bool addToCalendar;      // True nếu người dùng tick ô "Thêm vào Lịch"
   final String? calendarEventId; // Mã sự kiện Android trả về để sau này tự xóa/sửa
+  final String? calendarId;      // MỚI: Lưu luôn ID sổ Lịch đã ghi sự kiện để xóa đúng chỗ
 
   const AlertMilestone({
     required this.value,
     this.unit = 'days',
     this.addToCalendar = false,
     this.calendarEventId,
+    this.calendarId,
   });
 
-  // Hiển thị chữ đẹp trên giao diện (VD: "6 hours before", "1 day before")
+  // Hiển thị chữ mặc định cho tiêu đề sự kiện Lịch
   String get label {
     if (unit == 'hours') {
       return value == 1 ? '1 hour before' : '$value hours before';
@@ -27,12 +28,13 @@ class AlertMilestone {
   // Quy đổi ra giờ để sắp xếp các mốc từ xa đến gần
   int get totalHours => unit == 'hours' ? value : value * 24;
 
-  // Tạo bản sao có thay đổi một vài trường (kèm cờ xóa hẳn calendarEventId khi cần)
+  // Tạo bản sao có thay đổi một vài trường (cờ clearCalendarEventId xóa sạch cả ID sự kiện lẫn ID sổ Lịch)
   AlertMilestone copyWith({
     int? value,
     String? unit,
     bool? addToCalendar,
     String? calendarEventId,
+    String? calendarId,
     bool clearCalendarEventId = false,
   }) {
     return AlertMilestone(
@@ -42,6 +44,9 @@ class AlertMilestone {
       calendarEventId: clearCalendarEventId
           ? null
           : (calendarEventId ?? this.calendarEventId),
+      calendarId: clearCalendarEventId
+          ? null
+          : (calendarId ?? this.calendarId),
     );
   }
 
@@ -51,15 +56,17 @@ class AlertMilestone {
       'unit': unit,
       'addToCalendar': addToCalendar,
       'calendarEventId': calendarEventId,
+      'calendarId': calendarId,
     };
   }
 
   factory AlertMilestone.fromMap(Map<String, dynamic> map) {
     return AlertMilestone(
-      value: map['value'] ?? 1,
-      unit: map['unit'] ?? 'days',
-      addToCalendar: map['addToCalendar'] ?? false,
-      calendarEventId: map['calendarEventId'],
+      value: (map['value'] as num?)?.toInt() ?? 1,
+      unit: (map['unit'] ?? 'days').toString(),
+      addToCalendar: map['addToCalendar'] == true,
+      calendarEventId: map['calendarEventId'] as String?,
+      calendarId: map['calendarId'] as String?,
     );
   }
 }

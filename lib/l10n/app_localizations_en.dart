@@ -481,4 +481,90 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get versionSubtitle => 'Version 1.0.0 • Offline Mode';
+
+  @override
+  String get testNotifyTitle => 'MinExpiryTracker is ready!';
+
+  @override
+  String get testNotifyBody =>
+      'Offline expiry reminders are working properly on your phone.';
+
+  @override
+  String expiryAlertTitle(String category) {
+    return 'Expiry Alert: $category';
+  }
+
+  @override
+  String expiresInOneHour(String name) {
+    return '$name expires in 1 hour!';
+  }
+
+  @override
+  String expiresInHours(String name, int count) {
+    return '$name expires in $count hours!';
+  }
+
+  @override
+  String expiresTomorrow(String name) {
+    return '$name expires tomorrow!';
+  }
+
+  @override
+  String expiresInDays(String name, int count) {
+    return '$name expires in $count days.';
+  }
+
+  @override
+  String calItemLine(String name, String category) {
+    return 'Item: $name ($category)';
+  }
+
+  @override
+  String calExpiresLine(String date) {
+    return 'Expires: $date';
+  }
+
+  @override
+  String calReminderLine(String reminder) {
+    return 'Reminder: $reminder';
+  }
+
+  @override
+  String calOwnerLine(String owner) {
+    return 'Owner: $owner';
+  }
+
+  @override
+  String calLocationLine(String location) {
+    return 'Location: $location';
+  }
+
+  @override
+  String calNotesLine(String notes) {
+    return 'Notes: $notes';
+  }
+
+  @override
+  String get appearanceSection => 'Appearance';
+
+  @override
+  String get themeTitle => 'Theme';
+
+  @override
+  String get themeSystem => 'System Default';
+
+  @override
+  String get themeLight => 'Light';
+
+  @override
+  String get themeDark => 'Dark';
+
+  @override
+  String get filterCategory => 'Category';
+
+  @override
+  String get filterOwner => 'Owner';
+
+  @override
+  String get filterLocation => 'Location';
 }
