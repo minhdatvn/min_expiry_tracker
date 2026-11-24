@@ -49,7 +49,7 @@ class ItemCard extends StatelessWidget {
     return greenSafe;
   }
 
-  // 2. Nhãn đếm ngược góc phải (song ngữ)
+  /// 2. Nhãn đếm ngược góc phải (song ngữ, tự gom theo Năm / Tháng / Ngày)
   String _getStatusText(AppLocalizations l10n) {
     if (item.isHourlyPao) {
       final remaining = item.timeRemaining;
@@ -66,8 +66,17 @@ class ItemCard extends StatelessWidget {
     }
 
     final days = item.daysRemaining;
-    if (days < 0) return l10n.daysAgo(days.abs());
     if (days == 0) return l10n.today;
+
+    final absDays = days.abs();
+    if (days < 0) {
+      if (absDays >= 366) return l10n.moreThanYearsAgo(absDays ~/ 365);
+      if (absDays >= 31) return l10n.monthsAgo(absDays ~/ 30);
+      return l10n.daysAgo(absDays);
+    }
+
+    if (days >= 366) return l10n.moreThanYearsLeft(days ~/ 365);
+    if (days >= 31) return l10n.monthsLeft(days ~/ 30);
     return l10n.daysLeft(days);
   }
 

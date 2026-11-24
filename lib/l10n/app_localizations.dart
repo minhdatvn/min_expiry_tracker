@@ -851,7 +851,7 @@ abstract class AppLocalizations {
   /// No description provided for @backupSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Export all items & photos as a .json file to Google Drive or device storage'**
+  /// **'Export all items & photos as a .minexpiry file to Google Drive or device storage'**
   String get backupSubtitle;
 
   /// No description provided for @restoreData.
@@ -863,7 +863,7 @@ abstract class AppLocalizations {
   /// No description provided for @restoreSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Import a previously saved .json backup file and reschedule alerts'**
+  /// **'Import a saved .minexpiry (or .json) backup file and reschedule alerts'**
   String get restoreSubtitle;
 
   /// No description provided for @backupReady.
@@ -905,7 +905,7 @@ abstract class AppLocalizations {
   /// No description provided for @restoreError.
   ///
   /// In en, this message translates to:
-  /// **'Could not restore: Please select a valid MinExpiryTracker .json file.'**
+  /// **'Could not restore: Please select a valid MinExpiryTracker .minexpiry or .json file.'**
   String get restoreError;
 
   /// No description provided for @aboutSection.
@@ -1057,6 +1057,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copied from existing item. Please select the new expiry date.'**
   String get duplicateHint;
+
+  /// No description provided for @incomingBackupTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore Backup File?'**
+  String get incomingBackupTitle;
+
+  /// No description provided for @incomingBackupContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup date: {date}\nTotal items: {count}\n\nAll current items on this device will be replaced with this backup.'**
+  String incomingBackupContent(String date, int count);
+
+  /// No description provided for @restoreNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore Now'**
+  String get restoreNow;
+
+  /// No description provided for @restoringBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Restoring data...'**
+  String get restoringBackup;
+
+  /// No description provided for @moreThanYearsLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'> {count}y'**
+  String moreThanYearsLeft(int count);
+
+  /// No description provided for @monthsLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}mo left'**
+  String monthsLeft(int count);
+
+  /// No description provided for @moreThanYearsAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'> {count}y ago'**
+  String moreThanYearsAgo(int count);
+
+  /// No description provided for @monthsAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}mo ago'**
+  String monthsAgo(int count);
 }
 
 class _AppLocalizationsDelegate

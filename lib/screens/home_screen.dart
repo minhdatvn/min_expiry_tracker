@@ -8,6 +8,8 @@ import '../widgets/item_card.dart';
 import 'add_edit_screen.dart';
 import 'log_screen.dart';
 import 'settings_screen.dart';
+import '../services/backup_service.dart';
+import '../services/incoming_backup_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,10 +37,15 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadItems();
+    BackupService.instance.restoreVersionNotifier.addListener(_loadItems);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      IncomingBackupService.instance.checkInitialFile();
+    });
   }
 
   @override
   void dispose() {
+    BackupService.instance.restoreVersionNotifier.removeListener(_loadItems);
     _searchController.dispose();
     super.dispose();
   }

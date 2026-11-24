@@ -4,6 +4,7 @@ import 'screens/home_screen.dart';
 import 'services/locale_service.dart';
 import 'services/notify_service.dart';
 import 'services/theme_service.dart';
+import 'services/incoming_backup_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,6 +13,7 @@ Future<void> main() async {
   await LocaleService.instance.loadSavedLocale();
   await ThemeService.instance.loadSavedTheme();
   await NotifyService.instance.init();
+  IncomingBackupService.instance.init();
 
   runApp(const MinExpiryTrackerApp());
 }
@@ -29,6 +31,7 @@ class MinExpiryTrackerApp extends StatelessWidget {
       ]),
       builder: (context, _) {
         return MaterialApp(
+          navigatorKey: IncomingBackupService.instance.navigatorKey,
           onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitle,
           debugShowCheckedModeBanner: false,
 

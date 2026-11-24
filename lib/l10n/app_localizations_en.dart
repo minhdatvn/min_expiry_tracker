@@ -438,14 +438,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get backupSubtitle =>
-      'Export all items & photos as a .json file to Google Drive or device storage';
+      'Export all items & photos as a .minexpiry file to Google Drive or device storage';
 
   @override
   String get restoreData => 'Restore Data';
 
   @override
   String get restoreSubtitle =>
-      'Import a previously saved .json backup file and reschedule alerts';
+      'Import a saved .minexpiry (or .json) backup file and reschedule alerts';
 
   @override
   String backupReady(int count) {
@@ -474,7 +474,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get restoreError =>
-      'Could not restore: Please select a valid MinExpiryTracker .json file.';
+      'Could not restore: Please select a valid MinExpiryTracker .minexpiry or .json file.';
 
   @override
   String get aboutSection => 'About';
@@ -576,4 +576,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get duplicateHint =>
       'Copied from existing item. Please select the new expiry date.';
+
+  @override
+  String get incomingBackupTitle => 'Restore Backup File?';
+
+  @override
+  String incomingBackupContent(String date, int count) {
+    return 'Backup date: $date\nTotal items: $count\n\nAll current items on this device will be replaced with this backup.';
+  }
+
+  @override
+  String get restoreNow => 'Restore Now';
+
+  @override
+  String get restoringBackup => 'Restoring data...';
+
+  @override
+  String moreThanYearsLeft(int count) {
+    return '> ${count}y';
+  }
+
+  @override
+  String monthsLeft(int count) {
+    return '${count}mo left';
+  }
+
+  @override
+  String moreThanYearsAgo(int count) {
+    return '> ${count}y ago';
+  }
+
+  @override
+  String monthsAgo(int count) {
+    return '${count}mo ago';
+  }
 }

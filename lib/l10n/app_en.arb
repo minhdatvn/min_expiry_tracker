@@ -273,9 +273,9 @@
 
   "dataAndBackup": "Data & Backup",
   "backupData": "Backup Data",
-  "backupSubtitle": "Export all items & photos as a .json file to Google Drive or device storage",
+  "backupSubtitle": "Export all items & photos as a .minexpiry file to Google Drive or device storage",
   "restoreData": "Restore Data",
-  "restoreSubtitle": "Import a previously saved .json backup file and reschedule alerts",
+  "restoreSubtitle": "Import a saved .minexpiry (or .json) backup file and reschedule alerts",
   "backupReady": "Backup file ready ({count} items).",
   "@backupReady": {
     "placeholders": {
@@ -297,7 +297,7 @@
       "count": { "type": "int" }
     }
   },
-  "restoreError": "Could not restore: Please select a valid MinExpiryTracker .json file.",
+  "restoreError": "Could not restore: Please select a valid MinExpiryTracker .minexpiry or .json file.",
   "aboutSection": "About",
   "versionSubtitle": "Version {version} • Offline Mode",
   "@versionSubtitle": {
@@ -388,5 +388,51 @@
   "filterOwner": "Owner",
   "filterLocation": "Location",
   "duplicateItem": "Duplicate Item",
-  "duplicateHint": "Copied from existing item. Please select the new expiry date."
+  "duplicateHint": "Copied from existing item. Please select the new expiry date.",
+  "incomingBackupTitle": "Restore Backup File?",
+  "incomingBackupContent": "Backup date: {date}\nTotal items: {count}\n\nAll current items on this device will be replaced with this backup.",
+  "@incomingBackupContent": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "restoreNow": "Restore Now",
+  "restoringBackup": "Restoring data...",
+  "moreThanYearsLeft": "> {count}y",
+  "@moreThanYearsLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "monthsLeft": "{count}mo left",
+  "@monthsLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "moreThanYearsAgo": "> {count}y ago",
+  "@moreThanYearsAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "monthsAgo": "{count}mo ago",
+  "@monthsAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

@@ -439,14 +439,14 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get backupSubtitle =>
-      'Xuất toàn bộ vật phẩm & ảnh ra file .json để lưu vào Google Drive hoặc máy';
+      'Xuất toàn bộ vật phẩm & ảnh ra file .minexpiry để lưu vào Google Drive hoặc máy';
 
   @override
   String get restoreData => 'Khôi phục dữ liệu';
 
   @override
   String get restoreSubtitle =>
-      'Nhập lại file sao lưu .json và tự động đặt lại thông báo';
+      'Nhập lại file sao lưu .minexpiry (hoặc .json) và tự động đặt lại thông báo';
 
   @override
   String backupReady(int count) {
@@ -475,7 +475,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get restoreError =>
-      'Không thể khôi phục: Vui lòng chọn đúng file sao lưu .json của MinExpiryTracker.';
+      'Không thể khôi phục: Vui lòng chọn đúng file sao lưu .minexpiry hoặc .json của MinExpiryTracker.';
 
   @override
   String get aboutSection => 'Thông tin ứng dụng';
@@ -577,4 +577,38 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get duplicateHint =>
       'Đã sao chép thông tin. Vui lòng chọn ngày hết hạn mới.';
+
+  @override
+  String get incomingBackupTitle => 'Khôi phục bản sao lưu?';
+
+  @override
+  String incomingBackupContent(String date, int count) {
+    return 'Ngày sao lưu: $date\nSố vật phẩm: $count\n\nToàn bộ dữ liệu hiện tại trên máy sẽ được thay thế bằng bản sao lưu này.';
+  }
+
+  @override
+  String get restoreNow => 'Khôi phục ngay';
+
+  @override
+  String get restoringBackup => 'Đang khôi phục dữ liệu...';
+
+  @override
+  String moreThanYearsLeft(int count) {
+    return '> $count năm';
+  }
+
+  @override
+  String monthsLeft(int count) {
+    return 'Còn $count tháng';
+  }
+
+  @override
+  String moreThanYearsAgo(int count) {
+    return 'Quá $count năm';
+  }
+
+  @override
+  String monthsAgo(int count) {
+    return 'Quá $count tháng';
+  }
 }

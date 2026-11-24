@@ -28,6 +28,54 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- 1. Mở trực tiếp file .minexpiry khi URI có đuôi file kèm MIME type -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.minexpiry" />
+            </intent-filter>
+
+            <!-- 2. Mở trực tiếp file .minexpiry khi URI có đuôi file nhưng không gửi MIME type -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.minexpiry" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.minexpiry" />
+            </intent-filter>
+
+            <!-- 3. Bắt file từ Trình quản lý file mặc định gửi URI ẩn tên file (content://media/...) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- 4. Hỗ trợ Chia sẻ / Mở bằng từ Google Drive, Zalo, Telegram, File Explorer -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
