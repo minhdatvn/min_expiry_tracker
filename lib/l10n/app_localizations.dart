@@ -917,8 +917,8 @@ abstract class AppLocalizations {
   /// No description provided for @versionSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Version 1.0.0 • Offline Mode'**
-  String get versionSubtitle;
+  /// **'Version {version} • Offline Mode'**
+  String versionSubtitle(String version);
 
   /// No description provided for @testNotifyTitle.
   ///

@@ -67,8 +67,8 @@
   "tapToSelectDate": "Chạm để chọn ngày",
   "selectExpiryDateError": "Vui lòng chọn ngày hết hạn.",
 
-  "paoSectionTitle": "Hạn sau mở nắp - PAO (Tùy chọn)",
-  "paoValueLabel": "Thời hạn PAO",
+  "paoSectionTitle": "Hạn dùng sau mở nắp (Tùy chọn)",
+  "paoValueLabel": "Thời hạn",
   "unitLabel": "Đơn vị",
   "unitMonths": "Tháng",
   "unitDays": "Ngày",
@@ -87,8 +87,8 @@
   "addNewLocationTitle": "Thêm vị trí mới",
   "addNewLocationHint": "VD: Kệ bếp, Phòng ngủ",
 
-  "alertsSectionTitle": "Thông báo tùy chọn & Lịch điện thoại",
-  "alertsSectionHint": "Nhập thời gian nhắc trước khi hết hạn rồi bấm +. Tick \"Thêm vào Lịch\" để tự đồng bộ.",
+  "alertsSectionTitle": "Tùy chọn thông báo",
+  "alertsSectionHint": "Chọn \"Thêm vào Lịch\" để tự đồng bộ với ứng dụng Lịch của điện thoại.",
   "beforeLabel": "Trước",
   "addAlertTooltip": "Thêm mốc nhắc",
   "noAlertsSet": "Chưa cài đặt mốc nhắc nào.",
@@ -157,7 +157,7 @@
   "restoreSuccess": "Đã khôi phục thành công {count} vật phẩm!",
   "restoreError": "Không thể khôi phục: Vui lòng chọn đúng file sao lưu .json của MinExpiryTracker.",
   "aboutSection": "Thông tin ứng dụng",
-  "versionSubtitle": "Phiên bản 1.0.0 • Chế độ Offline",
+  "versionSubtitle": "Phiên bản {version} • Chế độ Offline",
   "testNotifyTitle": "MinExpiryTracker đã sẵn sàng!",
   "testNotifyBody": "Thông báo nhắc hạn sử dụng offline đang hoạt động ổn định trên điện thoại.",
   "expiryAlertTitle": "Cảnh báo hết hạn: {category}",
@@ -180,6 +180,6 @@
   "filterCategory": "Danh mục",
   "filterOwner": "Chủ sở hữu",
   "filterLocation": "Vị trí",
-  "duplicateItem": "Nhân bản vật phẩm",
+  "duplicateItem": "Sao chép vật phẩm",
   "duplicateHint": "Đã sao chép thông tin. Vui lòng chọn ngày hết hạn mới."
 }

@@ -195,10 +195,10 @@ class AppLocalizationsVi extends AppLocalizations {
   String get selectExpiryDateError => 'Vui lòng chọn ngày hết hạn.';
 
   @override
-  String get paoSectionTitle => 'Hạn sau mở nắp - PAO (Tùy chọn)';
+  String get paoSectionTitle => 'Hạn dùng sau mở nắp (Tùy chọn)';
 
   @override
-  String get paoValueLabel => 'Thời hạn PAO';
+  String get paoValueLabel => 'Thời hạn';
 
   @override
   String get unitLabel => 'Đơn vị';
@@ -246,11 +246,11 @@ class AppLocalizationsVi extends AppLocalizations {
   String get addNewLocationHint => 'VD: Kệ bếp, Phòng ngủ';
 
   @override
-  String get alertsSectionTitle => 'Thông báo tùy chọn & Lịch điện thoại';
+  String get alertsSectionTitle => 'Tùy chọn thông báo';
 
   @override
   String get alertsSectionHint =>
-      'Nhập thời gian nhắc trước khi hết hạn rồi bấm +. Tick \"Thêm vào Lịch\" để tự đồng bộ.';
+      'Chọn \"Thêm vào Lịch\" để tự đồng bộ với ứng dụng Lịch của điện thoại.';
 
   @override
   String get beforeLabel => 'Trước';
@@ -481,7 +481,9 @@ class AppLocalizationsVi extends AppLocalizations {
   String get aboutSection => 'Thông tin ứng dụng';
 
   @override
-  String get versionSubtitle => 'Phiên bản 1.0.0 • Chế độ Offline';
+  String versionSubtitle(String version) {
+    return 'Phiên bản $version • Chế độ Offline';
+  }
 
   @override
   String get testNotifyTitle => 'MinExpiryTracker đã sẵn sàng!';
@@ -570,7 +572,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get filterLocation => 'Vị trí';
 
   @override
-  String get duplicateItem => 'Nhân bản vật phẩm';
+  String get duplicateItem => 'Sao chép vật phẩm';
 
   @override
   String get duplicateHint =>

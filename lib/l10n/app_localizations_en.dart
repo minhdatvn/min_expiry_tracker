@@ -480,7 +480,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutSection => 'About';
 
   @override
-  String get versionSubtitle => 'Version 1.0.0 • Offline Mode';
+  String versionSubtitle(String version) {
+    return 'Version $version • Offline Mode';
+  }
 
   @override
   String get testNotifyTitle => 'MinExpiryTracker is ready!';

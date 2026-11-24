@@ -4,6 +4,7 @@ import '../services/backup_service.dart';
 import '../services/locale_service.dart';
 import '../services/notify_service.dart';
 import '../services/theme_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,7 +14,30 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  static String? _cachedVersion;
   bool _isBusy = false;
+  String _appVersion = _cachedVersion ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    if (_cachedVersion != null) return;
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final formatted = info.buildNumber.isNotEmpty
+          ? '${info.version} (${info.buildNumber})'
+          : info.version;
+      _cachedVersion = formatted;
+      if (!mounted) return;
+      setState(() => _appVersion = formatted);
+    } catch (_) {
+      // Bỏ qua êm ái nếu không đọc được thông tin gói
+    }
+  }
 
   // Lấy tên hiển thị của ngôn ngữ đang chọn
   String _getCurrentLanguageLabel(AppLocalizations l10n, Locale? locale) {
@@ -374,7 +398,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ListTile(
               leading: const Icon(Icons.info_outline),
               title: Text(l10n.appTitle),
-              subtitle: Text(l10n.versionSubtitle),
+              subtitle: Text(
+                l10n.versionSubtitle(_appVersion.isEmpty ? '...' : _appVersion),
+              ),
             ),
           ],
         ),

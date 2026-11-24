@@ -299,7 +299,14 @@
   },
   "restoreError": "Could not restore: Please select a valid MinExpiryTracker .json file.",
   "aboutSection": "About",
-  "versionSubtitle": "Version 1.0.0 • Offline Mode",
+  "versionSubtitle": "Version {version} • Offline Mode",
+  "@versionSubtitle": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "testNotifyTitle": "MinExpiryTracker is ready!",
   "testNotifyBody": "Offline expiry reminders are working properly on your phone.",
   "expiryAlertTitle": "Expiry Alert: {category}",
