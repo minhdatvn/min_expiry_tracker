@@ -638,4 +638,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get scanExpiryNoResult => 'No valid expiry date found in the image.';
+
+  @override
+  String get photoScanHint =>
+      'Snap the front label to auto-suggest name & category';
+
+  @override
+  String get paoSwitchSubtitle => 'Track shorter expiry after opening';
+
+  @override
+  String paoEffectivePreview(String date) {
+    return 'Effective expiry: $date';
+  }
+
+  @override
+  String get alertsCalendarHint =>
+      'Tap the Calendar button on each alert to sync with your phone.';
+
+  @override
+  String get quickAlertsLabel => 'Quick add:';
 }

@@ -2,6 +2,18 @@ import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart
 
 enum PackageScanMode { name, expiryDate }
 
+class FrontLabelScanResult {
+  final List<String> nameSuggestions;
+  final String? suggestedCategory;
+
+  const FrontLabelScanResult({
+    this.nameSuggestions = const [],
+    this.suggestedCategory,
+  });
+
+  bool get isEmpty => nameSuggestions.isEmpty && suggestedCategory == null;
+}
+
 class ScannedDateCandidate {
   final DateTime date;
   final String rawText;
@@ -63,6 +75,130 @@ class PackageScannerService {
     'supplement facts',
   ];
 
+  // Từ điển chấm điểm phân loại (khớp đúng khóa chuẩn trong AppConstants.defaultCategories)
+  static const Map<String, Map<String, int>> _categoryKeywords = {
+    'Cosmetics': {
+      'toner': 4,
+      'serum': 4,
+      'sua rua mat': 4,
+      'tay trang': 4,
+      'kem chong nang': 4,
+      'duong am': 3,
+      'mat na': 3,
+      'tay te bao chet': 4,
+      'nuoc hoa hong': 4,
+      'xit khoang': 4,
+      'dau goi': 3,
+      'dau xa': 3,
+      'sua tam': 4,
+      'kem duong': 3,
+      'my pham': 3,
+      'cleanser': 3,
+      'sunscreen': 3,
+      'sunblock': 3,
+      'moisturizer': 3,
+      'lotion': 3,
+      'essence': 3,
+      'ampoule': 3,
+      'micellar': 3,
+      'cream': 2,
+      'gel': 2,
+      'mask': 2,
+      'lipstick': 3,
+      'son moi': 3,
+      'shampoo': 3,
+      'conditioner': 3,
+      'body wash': 3,
+      'skincare': 3,
+      'cosmetic': 3,
+      'spf': 2,
+      'pa+++': 2,
+      'kem': 1,
+    },
+    'Medicine': {
+      'thuoc': 4,
+      'vien nen': 4,
+      'vien nang': 4,
+      'vien sui': 4,
+      'nho mat': 4,
+      'nho mui': 4,
+      'xit mui': 4,
+      'khang sinh': 4,
+      'giam dau': 3,
+      'ha sot': 3,
+      'men vi sinh': 4,
+      'siro ho': 4,
+      'bo phe': 3,
+      'dau gio': 3,
+      'cao dan': 3,
+      'sat khuan': 3,
+      'thuc pham chuc nang': 3,
+      'thuc pham bao ve suc khoe': 3,
+      'duoc pham': 4,
+      'chi dinh': 2,
+      'lieu dung': 2,
+      'tablet': 3,
+      'tablets': 3,
+      'capsule': 3,
+      'capsules': 3,
+      'syrup': 3,
+      'ointment': 3,
+      'medicine': 3,
+      'pharmacy': 3,
+      'paracetamol': 4,
+      'ibuprofen': 4,
+      'vitamin': 2,
+      'omega': 2,
+      'probiotic': 3,
+      'mg': 1,
+      'mcg': 1,
+      'vien': 2,
+      'siro': 2,
+    },
+    'Food': {
+      'sua tuoi': 4,
+      'sua chua': 4,
+      'sua dac': 4,
+      'sua hat': 4,
+      'sua bot': 4,
+      'thuc pham': 3,
+      'nuoc mam': 4,
+      'nuoc tuong': 4,
+      'dau an': 4,
+      'hat nem': 4,
+      'gia vi': 3,
+      'banh quy': 3,
+      'banh mi': 3,
+      'mi an lien': 4,
+      'ngu coc': 3,
+      'ca phe': 3,
+      'tra tui loc': 3,
+      'nuoc ngot': 3,
+      'nuoc ep': 3,
+      'pho mai': 3,
+      'xuc xich': 3,
+      'do hop': 3,
+      'mat ong': 3,
+      'milk': 3,
+      'yogurt': 3,
+      'cheese': 3,
+      'juice': 3,
+      'coffee': 3,
+      'tea': 2,
+      'snack': 3,
+      'biscuit': 3,
+      'cookie': 3,
+      'noodle': 3,
+      'sauce': 3,
+      'food': 3,
+      'nutrition': 2,
+      'sua': 2,
+      'banh': 2,
+      'keo': 2,
+      'tra': 1,
+    },
+  };
+
   static const Map<String, int> _monthNames = {
     'jan': 1,
     'feb': 2,
@@ -86,18 +222,63 @@ class PackageScannerService {
     r'\b(nsx|mfg|mfd|prod|pd|ngay san xuat)\b',
   );
 
-  // --- LUỒNG 1: CHUYÊN QUÉT TÊN SẢN PHẨM ---
-  Future<List<String>> scanProductName(String imagePath) async {
+  // --- LUỒNG 1: QUÉT NHÃN MẶT TRƯỚC (GỢI Ý TÊN + TỰ ĐỘNG PHÂN LOẠI DANH MỤC) ---
+  Future<FrontLabelScanResult> scanFrontLabel(String imagePath) async {
     final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
     try {
       final inputImage = InputImage.fromFilePath(imagePath);
       final recognizedText = await textRecognizer.processImage(inputImage);
-      return _extractNameCandidates(recognizedText);
+
+      final names = _extractNameCandidates(recognizedText);
+      final category = classifyCategoryFromText(recognizedText.text);
+
+      return FrontLabelScanResult(
+        nameSuggestions: names,
+        suggestedCategory: category,
+      );
     } catch (_) {
-      return const [];
+      return const FrontLabelScanResult();
     } finally {
       await textRecognizer.close();
     }
+  }
+
+  // --- PHÂN LOẠI DANH MỤC TỪ VĂN BẢN (DÙNG CHUNG CHO CẢ ẢNH QUÉT & Ô NHẬP TÊN) ---
+  String? classifyCategoryFromText(String rawText) {
+    final cleaned = _cleanLineText(rawText);
+    if (cleaned.length < 2) return null;
+
+    final normalized = _removeVietnameseDiacritics(cleaned.toLowerCase());
+    final Map<String, int> scores = {
+      'Cosmetics': 0,
+      'Medicine': 0,
+      'Food': 0,
+    };
+
+    _categoryKeywords.forEach((category, keywords) {
+      int totalScore = 0;
+      keywords.forEach((keyword, weight) {
+        final pattern = RegExp(
+          '(?:^|[^a-z0-9])${RegExp.escape(keyword)}(?:\$|[^a-z0-9])',
+        );
+        if (pattern.hasMatch(normalized)) {
+          totalScore += weight;
+        }
+      });
+      scores[category] = totalScore;
+    });
+
+    String? bestCategory;
+    int highestScore = 0;
+
+    scores.forEach((category, score) {
+      if (score > highestScore) {
+        highestScore = score;
+        bestCategory = category;
+      }
+    });
+
+    return highestScore > 0 ? bestCategory : null;
   }
 
   // --- LUỒNG 2: CHUYÊN QUÉT NGÀY HẾT HẠN ---
@@ -137,7 +318,7 @@ class PackageScannerService {
         final second = validLines[1];
         final ratio = second.height / (first.height == 0 ? 1 : first.height);
         final combined = '${first.text} ${second.text}';
-        if (ratio >= 0.7 && combined.length <= 55) {
+        if (ratio >= 0.6 && combined.length <= 55) {
           candidates.add((
             text: combined,
             height: (first.height + second.height) / 2 + 1,
@@ -157,7 +338,7 @@ class PackageScannerService {
       final key = item.text.toLowerCase();
       if (seen.add(key)) {
         result.add(item.text);
-        if (result.length >= 3) break;
+        if (result.length >= 5) break;
       }
     }
 
@@ -203,7 +384,6 @@ class PackageScannerService {
         for (final line in block.lines) _cleanLineText(line.text),
     ];
 
-    // Theo dõi nhãn HSD/NSX đứng một mình ở dòng ngay phía trên
     String? pendingLabelFromPrevLine;
 
     for (final line in allLines) {
@@ -215,16 +395,17 @@ class PackageScannerService {
 
       final bool isExpiryLine =
           hasExpiryKw || (!hasMfgKw && pendingLabelFromPrevLine == 'expiry');
-      final bool isMfgLine = !isExpiryLine &&
-          (hasMfgKw || pendingLabelFromPrevLine == 'mfg');
+      final bool isMfgLine =
+          !isExpiryLine && (hasMfgKw || pendingLabelFromPrevLine == 'mfg');
 
-      final bool allowCompact =
-          hasExpiryKw || hasMfgKw || pendingLabelFromPrevLine != null || line.length <= 14;
+      final bool allowCompact = hasExpiryKw ||
+          hasMfgKw ||
+          pendingLabelFromPrevLine != null ||
+          line.length <= 14;
 
       final extracted = _parseDatesFromLine(line, allowCompact: allowCompact);
 
       if (extracted.isEmpty) {
-        // Lưu lại nhãn nếu dòng này chỉ có chữ "HSD:" / "EXP" và ngày nằm ở dòng kế tiếp
         if (hasExpiryKw) {
           pendingLabelFromPrevLine = 'expiry';
         } else if (hasMfgKw) {
@@ -293,7 +474,7 @@ class PackageScannerService {
     final List<({DateTime date, String rawText})> results = [];
     String working = line;
 
-    // 1. Tên tháng tiếng Anh trước khi sửa ký tự OCR (VD: "15 MAR 2027", "15AUG26", "MAR 2027")
+    // 1. Tên tháng tiếng Anh (VD: "15 MAR 2027", "15AUG26", "MAR 2027")
     final textMonthRegex = RegExp(
       r'\b(?:(\d{1,2})\s*)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[\s./-]*(20[2-5]\d|\d{2})\b',
       caseSensitive: false,
@@ -315,10 +496,9 @@ class PackageScannerService {
       }
     }
 
-    // Chuẩn hóa lỗi OCR chữ/số (O->0, I/l->1) trên phần văn bản còn lại
     working = _normalizeOcrDateDigits(working);
 
-    // 2. Dạng YYYY/MM/DD (hỗ trợ dấu /, ., -, hoặc khoảng trắng)
+    // 2. Dạng YYYY/MM/DD
     final ymdRegex =
         RegExp(r'\b(20[2-5]\d)[/.\- ](\d{1,2})[/.\- ](\d{1,2})\b');
     for (final m in ymdRegex.allMatches(working)) {
@@ -332,7 +512,7 @@ class PackageScannerService {
       }
     }
 
-    // 3. Dạng DD/MM/YYYY hoặc DD/MM/YY (tự đảo MM/DD nếu định dạng Mỹ như 12/31/2026)
+    // 3. Dạng DD/MM/YYYY hoặc DD/MM/YY
     final dmyRegex =
         RegExp(r'\b(\d{1,2})[/.\- ](\d{1,2})[/.\- ](20[2-5]\d|\d{2})\b');
     for (final m in dmyRegex.allMatches(working)) {
@@ -351,7 +531,7 @@ class PackageScannerService {
       }
     }
 
-    // 4. Dạng chỉ có Tháng/Năm: MM/YYYY hoặc MM/YY (chỉ quét trên phần chưa khớp phía trên)
+    // 4. Dạng Tháng/Năm: MM/YYYY hoặc MM/YY
     final myRegex = RegExp(r'\b(\d{1,2})[/.\- ](20[2-5]\d|\d{2})\b');
     for (final m in myRegex.allMatches(working)) {
       final month = int.parse(m.group(1)!);
@@ -364,7 +544,7 @@ class PackageScannerService {
       }
     }
 
-    // 5. Dạng viết liền không dấu ngăn cách (VD: 20270501, 31122026, 311226)
+    // 5. Dạng viết liền không dấu ngăn cách
     if (allowCompact) {
       final compact8Regex = RegExp(r'\b(\d{8})\b');
       for (final m in compact8Regex.allMatches(working)) {

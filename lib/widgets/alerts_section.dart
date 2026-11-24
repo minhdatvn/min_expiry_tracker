@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 
-// Cụm giao diện quản lý danh sách mốc cảnh báo & ô tick đồng bộ Lịch điện thoại
+// Cụm giao diện quản lý danh sách mốc cảnh báo & đồng bộ Lịch điện thoại
 class AlertsSection extends StatefulWidget {
   final List<AlertMilestone> alerts;
   final ValueChanged<List<AlertMilestone>> onChanged;
@@ -19,6 +20,8 @@ class AlertsSection extends StatefulWidget {
 }
 
 class _AlertsSectionState extends State<AlertsSection> {
+  static const List<int> _quickDayPresets = [1, 3, 7, 30];
+
   final TextEditingController _valueController = TextEditingController();
   String _selectedUnit = 'days';
 
@@ -28,9 +31,12 @@ class _AlertsSectionState extends State<AlertsSection> {
     super.dispose();
   }
 
-  void _addAlertMilestone() {
+  void _addAlertMilestone({int? presetDays}) {
     final l10n = AppLocalizations.of(context)!;
-    final value = int.tryParse(_valueController.text.trim());
+    final int? value =
+        presetDays ?? int.tryParse(_valueController.text.trim());
+    final String unit = presetDays != null ? 'days' : _selectedUnit;
+
     if (value == null || value <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.invalidPositiveNumber)),
@@ -39,7 +45,7 @@ class _AlertsSectionState extends State<AlertsSection> {
     }
 
     final alreadyExists = widget.alerts.any(
-      (a) => a.value == value && a.unit == _selectedUnit,
+      (a) => a.value == value && a.unit == unit,
     );
     if (alreadyExists) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -48,12 +54,13 @@ class _AlertsSectionState extends State<AlertsSection> {
       return;
     }
 
-    // Tạo bản sao danh sách mới, thêm mốc, sắp xếp lại rồi gửi về màn hình cha
     final updated = List<AlertMilestone>.from(widget.alerts)
-      ..add(AlertMilestone(value: value, unit: _selectedUnit))
+      ..add(AlertMilestone(value: value, unit: unit))
       ..sort((a, b) => b.totalHours.compareTo(a.totalHours));
 
-    _valueController.clear();
+    if (presetDays == null) {
+      _valueController.clear();
+    }
     widget.onChanged(updated);
   }
 
@@ -71,25 +78,50 @@ class _AlertsSectionState extends State<AlertsSection> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final availablePresets = _quickDayPresets
+        .where(
+          (days) => !widget.alerts.any(
+            (a) => a.unit == 'days' && a.value == days,
+          ),
+        )
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          l10n.alertsSectionTitle,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.bold,
-          ),
+        Row(
+          children: [
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 19,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.alertsSectionTitle,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 4),
         Text(
-          l10n.alertsSectionHint,
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          l10n.alertsCalendarHint,
+          style: TextStyle(
+            fontSize: 12,
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
 
-        // Thanh nhập mốc nhắc mới
+        // Thanh nhập mốc nhắc tùy chỉnh
         Row(
           children: [
             Expanded(
@@ -97,10 +129,11 @@ class _AlertsSectionState extends State<AlertsSection> {
               child: TextField(
                 controller: _valueController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onSubmitted: (_) => _addAlertMilestone(),
                 decoration: InputDecoration(
                   labelText: l10n.beforeLabel,
                   hintText: '3',
-                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
               ),
@@ -112,7 +145,6 @@ class _AlertsSectionState extends State<AlertsSection> {
                 value: _selectedUnit,
                 decoration: InputDecoration(
                   labelText: l10n.unitLabel,
-                  border: const OutlineInputBorder(),
                   isDense: true,
                 ),
                 items: [
@@ -133,23 +165,92 @@ class _AlertsSectionState extends State<AlertsSection> {
               ),
             ),
             const SizedBox(width: 8),
-            IconButton.filled(
-              onPressed: _addAlertMilestone,
-              icon: const Icon(Icons.add),
-              tooltip: l10n.addAlertTooltip,
+            SizedBox(
+              height: 48,
+              width: 48,
+              child: IconButton.filled(
+                style: IconButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: _addAlertMilestone,
+                icon: const Icon(Icons.add),
+                tooltip: l10n.addAlertTooltip,
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 10),
+
+        // Dãy chip gợi ý thêm nhanh các mốc ngày phổ biến
+        if (availablePresets.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                l10n.quickAlertsLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: availablePresets.map((days) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ActionChip(
+                          visualDensity: VisualDensity.compact,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          avatar: Icon(
+                            Icons.add,
+                            size: 14,
+                            color: colorScheme.primary,
+                          ),
+                          label: Text(
+                            l10n.daysBeforeLabel(days),
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          side: BorderSide(color: colorScheme.outlineVariant),
+                          onPressed: () =>
+                              _addAlertMilestone(presetDays: days),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 12),
 
         // Danh sách các mốc đã cài đặt
         if (widget.alerts.isEmpty)
-          Text(
-            l10n.noAlertsSet,
-            style: TextStyle(
-              fontSize: 13,
-              fontStyle: FontStyle.italic,
-              color: Colors.grey.shade600,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              l10n.noAlertsSet,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
           )
         else
@@ -157,17 +258,17 @@ class _AlertsSectionState extends State<AlertsSection> {
             children: widget.alerts.asMap().entries.map((entry) {
               final index = entry.key;
               final alert = entry.value;
+              final isSynced = alert.addToCalendar;
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.fromLTRB(12, 6, 4, 6),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                  color: colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant.withAlpha(150),
+                  ),
                 ),
                 child: Row(
                   children: [
@@ -176,7 +277,7 @@ class _AlertsSectionState extends State<AlertsSection> {
                           ? Icons.schedule
                           : Icons.notifications_outlined,
                       size: 18,
-                      color: Colors.teal.shade700,
+                      color: colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -184,37 +285,71 @@ class _AlertsSectionState extends State<AlertsSection> {
                         localizeAlertLabel(l10n, alert),
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                          fontSize: 13.5,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(6),
-                      onTap: () => _toggleCalendar(index, !alert.addToCalendar),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Checkbox(
-                            value: alert.addToCalendar,
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                            onChanged: (checked) {
-                              _toggleCalendar(index, checked ?? false);
-                            },
+                    // Nút bật/tắt đồng bộ Lịch dạng pill gọn gàng
+                    Tooltip(
+                      message: l10n.addToCalendar,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: () => _toggleCalendar(index, !isSynced),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
                           ),
-                          Text(
-                            l10n.addToCalendar,
-                            style: const TextStyle(fontSize: 12),
+                          decoration: BoxDecoration(
+                            color: isSynced
+                                ? colorScheme.primaryContainer
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isSynced
+                                  ? colorScheme.primary.withAlpha(150)
+                                  : colorScheme.outlineVariant,
+                            ),
                           ),
-                          const SizedBox(width: 4),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isSynced
+                                    ? Icons.event_available
+                                    : Icons.calendar_today_outlined,
+                                size: 15,
+                                color: isSynced
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                l10n.logActionCalendar,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSynced
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  color: isSynced
+                                      ? colorScheme.onPrimaryContainer
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close, size: 18),
+                      icon: Icon(
+                        Icons.close,
+                        size: 18,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                       visualDensity: VisualDensity.compact,
                       tooltip: l10n.removeAlertTooltip,
                       onPressed: () => _removeAlert(index),

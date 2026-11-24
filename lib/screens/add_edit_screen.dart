@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
@@ -29,6 +29,8 @@ class AddEditScreen extends StatefulWidget {
 }
 
 class _AddEditScreenState extends State<AddEditScreen> {
+  static const List<int> _paoMonthPresets = [3, 6, 12, 24];
+
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nameController;
@@ -37,7 +39,11 @@ class _AddEditScreenState extends State<AddEditScreen> {
   late final TextEditingController _notesController;
 
   late String _selectedCategory;
+  bool _userManuallySelectedCategory = false;
   DateTime? _expiryDate;
+  bool _showExpiryError = false;
+
+  late bool _paoEnabled;
   DateTime? _openedDate;
   late String _paoUnit;
 
@@ -67,6 +73,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final item = widget.existingItem;
 
     _nameController = TextEditingController(text: item?.name ?? '');
+    _nameController.addListener(_onNameChanged);
     _paoValueController = TextEditingController(
       text: item?.paoValue?.toString() ?? '',
     );
@@ -79,6 +86,8 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _expiryDate = widget.isDuplicate ? null : item?.expiryDate;
     _openedDate = widget.isDuplicate ? null : item?.openedDate;
     _paoUnit = item?.paoUnit ?? 'months';
+    _paoEnabled = (item?.paoValue != null && item!.paoValue! > 0) ||
+        (!widget.isDuplicate && item?.openedDate != null);
 
     _selectedOwner = item?.owner;
     _selectedLocation = item?.location;
@@ -125,6 +134,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   @override
   void dispose() {
+    _nameController.removeListener(_onNameChanged);
     _nameController.dispose();
     _paoValueController.dispose();
     _quantityController.dispose();
@@ -132,11 +142,86 @@ class _AddEditScreenState extends State<AddEditScreen> {
     super.dispose();
   }
 
+  void _onNameChanged() {
+    _applyAutoCategory(_nameController.text);
+  }
+
+  void _applyAutoCategory(String sourceText, {String? directCategory}) {
+    if (_isEditing || _userManuallySelectedCategory) return;
+    final detected = directCategory ??
+        PackageScannerService.instance.classifyCategoryFromText(sourceText);
+    if (detected != null && detected != _selectedCategory) {
+      setState(() => _selectedCategory = detected);
+    }
+  }
+
+  // --- BỘ ĐIỀU KHIỂN TĂNG / GIẢM SỐ LƯỢNG 1 CHẠM ---
+  void _adjustQuantity(int delta) {
+    final current = int.tryParse(_quantityController.text.trim());
+    final int? next;
+    if (current == null) {
+      next = delta > 0 ? 1 : null;
+    } else {
+      final candidate = current + delta;
+      next = candidate <= 0 ? null : candidate;
+    }
+
+    setState(() {
+      final text = next?.toString() ?? '';
+      _quantityController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    });
+  }
+
+  // --- TÍNH XEM TRƯỚC HẠN DÙNG THỰC TẾ KHI BẬT PAO ---
+  DateTime? _calculatePaoPreview() {
+    if (!_paoEnabled || _openedDate == null) return null;
+    final paoValue = int.tryParse(_paoValueController.text.trim());
+    if (paoValue == null || paoValue <= 0) return null;
+
+    final DateTime paoExpiry;
+    switch (_paoUnit) {
+      case 'hours':
+        paoExpiry = _openedDate!.add(Duration(hours: paoValue));
+        break;
+      case 'days':
+        paoExpiry = _openedDate!.add(Duration(days: paoValue));
+        break;
+      case 'months':
+      default:
+        paoExpiry = DateTime(
+          _openedDate!.year,
+          _openedDate!.month + paoValue,
+          _openedDate!.day,
+          _openedDate!.hour,
+          _openedDate!.minute,
+        );
+        break;
+    }
+
+    if (_expiryDate != null) {
+      final endOfExpiryDay = DateTime(
+        _expiryDate!.year,
+        _expiryDate!.month,
+        _expiryDate!.day,
+        23,
+        59,
+      );
+      if (endOfExpiryDay.isBefore(paoExpiry)) {
+        return _paoUnit == 'hours' ? endOfExpiryDay : _expiryDate;
+      }
+    }
+
+    return paoExpiry;
+  }
+
   // --- 1. CHỌN ẢNH ĐẠI DIỆN & 2 LUỒNG QUÉT CHUYÊN BIỆT (TÊN / HSD) ---
   Future<void> _pickImage(ImageSource source) async {
     if (_isScanning) return;
 
-    // Chỉ tự động gợi ý tên khi chụp/chọn ảnh lần đầu và ô Tên đang trống
+    // Chỉ tự động gợi ý tên & phân loại khi chụp/chọn ảnh lần đầu và ô Tên đang trống
     final bool shouldAutoScanName =
         _imageBytes == null && _nameController.text.trim().isEmpty;
 
@@ -162,10 +247,18 @@ class _AddEditScreenState extends State<AddEditScreen> {
       if (shouldAutoScanName) {
         setState(() => _scanningMode = PackageScanMode.name);
         try {
-          final names = await PackageScannerService.instance
-              .scanProductName(pickedFile.path);
-          if (!mounted || names.isEmpty) return;
-          setState(() => _suggestedNames = names);
+          final scanResult = await PackageScannerService.instance
+              .scanFrontLabel(pickedFile.path);
+          if (!mounted) return;
+          if (scanResult.nameSuggestions.isNotEmpty) {
+            setState(() => _suggestedNames = scanResult.nameSuggestions);
+          }
+          if (scanResult.suggestedCategory != null) {
+            _applyAutoCategory(
+              '',
+              directCategory: scanResult.suggestedCategory,
+            );
+          }
         } finally {
           if (mounted && _scanningMode == PackageScanMode.name) {
             setState(() => _scanningMode = null);
@@ -181,6 +274,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Wrap(
           children: [
@@ -225,12 +319,12 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final l10n = AppLocalizations.of(context)!;
     try {
       final picker = ImagePicker();
-      // Ảnh quét tạm giữ độ phân giải cao (1600px) để chữ in phun nhỏ vẫn rõ nét
+      // Ảnh quét tạm giữ độ phân giải cao (2048px) để chữ in phun nhỏ vẫn rõ nét
       final XFile? pickedFile = await picker.pickImage(
         source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 85,
+        maxWidth: 2048,
+        maxHeight: 2048,
+        imageQuality: 90,
       );
 
       if (pickedFile == null || !mounted) return;
@@ -238,16 +332,23 @@ class _AddEditScreenState extends State<AddEditScreen> {
       setState(() => _scanningMode = mode);
 
       if (mode == PackageScanMode.name) {
-        final names = await PackageScannerService.instance
-            .scanProductName(pickedFile.path);
+        final scanResult = await PackageScannerService.instance
+            .scanFrontLabel(pickedFile.path);
         if (!mounted) return;
 
-        if (names.isEmpty) {
+        if (scanResult.suggestedCategory != null) {
+          _applyAutoCategory(
+            '',
+            directCategory: scanResult.suggestedCategory,
+          );
+        }
+
+        if (scanResult.nameSuggestions.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(l10n.scanNameNoResult)),
           );
         } else {
-          setState(() => _suggestedNames = names);
+          setState(() => _suggestedNames = scanResult.nameSuggestions);
         }
       } else {
         final dates = await PackageScannerService.instance
@@ -262,6 +363,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
           setState(() {
             _suggestedDates = dates;
             _expiryDate = dates.first.date;
+            _showExpiryError = false;
           });
         }
       }
@@ -276,6 +378,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
+      showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: Wrap(
           children: [
@@ -319,6 +422,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
       setState(() {
         if (isExpiryDate) {
           _expiryDate = picked;
+          _showExpiryError = false;
         } else {
           final hour = _openedDate?.hour ?? now.hour;
           final minute = _openedDate?.minute ?? now.minute;
@@ -375,10 +479,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
             final text = value.trim();
             if (text.isNotEmpty) Navigator.pop(context, text);
           },
-          decoration: InputDecoration(
-            hintText: hintText,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(hintText: hintText),
         ),
         actions: [
           TextButton(
@@ -418,22 +519,28 @@ class _AddEditScreenState extends State<AddEditScreen> {
   // --- 4. LƯU VẬT PHẨM ---
   void _saveItem() {
     final l10n = AppLocalizations.of(context)!;
-    if (!_formKey.currentState!.validate()) return;
+    final isFormValid = _formKey.currentState!.validate();
 
     if (_expiryDate == null) {
+      setState(() => _showExpiryError = true);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.selectExpiryDateError)),
       );
       return;
     }
 
+    if (!isFormValid) return;
+
+    final int? parsedPao =
+        _paoEnabled ? int.tryParse(_paoValueController.text.trim()) : null;
+
     final savedItem = HouseholdItem(
       id: _isEditing ? widget.existingItem!.id : null,
       name: _nameController.text.trim(),
       category: _selectedCategory,
       expiryDate: _expiryDate!,
-      openedDate: _openedDate,
-      paoValue: int.tryParse(_paoValueController.text.trim()),
+      openedDate: _paoEnabled ? _openedDate : null,
+      paoValue: (parsedPao != null && parsedPao > 0) ? parsedPao : null,
       paoUnit: _paoUnit,
       quantity: int.tryParse(_quantityController.text.trim()),
       owner: _selectedOwner,
@@ -475,14 +582,138 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
   }
 
+  // --- THÀNH PHẦN GIAO DIỆN PHỤ TRỢ ---
+  Widget _buildSectionCard({
+    required Widget child,
+    EdgeInsetsGeometry padding = const EdgeInsets.all(14),
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      width: double.infinity,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: isDark
+            ? colorScheme.surfaceContainer
+            : colorScheme.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withAlpha(isDark ? 90 : 140),
+        ),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildScanButton({
+    required PackageScanMode mode,
+    required String tooltip,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isThisScanning = _scanningMode == mode;
+
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: _isScanning ? null : () => _showScanSheet(mode),
+      style: IconButton.styleFrom(
+        backgroundColor: colorScheme.primaryContainer.withAlpha(145),
+        foregroundColor: colorScheme.primary,
+        disabledBackgroundColor: colorScheme.surfaceContainerHighest,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+      icon: isThisScanning
+          ? SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colorScheme.primary,
+              ),
+            )
+          : const Icon(Icons.document_scanner_outlined, size: 20),
+    );
+  }
+
+  Widget _buildQuantityStepper(
+    AppLocalizations l10n,
+    ColorScheme colorScheme,
+  ) {
+    final currentQty = int.tryParse(_quantityController.text.trim());
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: l10n.quantityLabel,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      ),
+      child: SizedBox(
+        height: 36,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                onPressed: currentQty != null ? () => _adjustQuantity(-1) : null,
+                icon: const Icon(Icons.remove),
+              ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                textAlign: TextAlign.center,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+                decoration: const InputDecoration(
+                  hintText: '1',
+                  isCollapsed: true,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 32,
+              height: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                iconSize: 18,
+                color: colorScheme.primary,
+                onPressed: () => _adjustQuantity(1),
+                icon: const Icon(Icons.add),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final colorScheme = Theme.of(context).colorScheme;
     final timeFormat = DateFormat('HH:mm');
+    final paoPreview = _calculatePaoPreview();
 
     return Scaffold(
+      backgroundColor: colorScheme.surfaceContainerLow,
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
+        backgroundColor: colorScheme.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 1,
         title: Text(
           widget.isDuplicate
               ? l10n.duplicateItem
@@ -505,7 +736,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: Form(
             key: _formKey,
             child: Column(
@@ -519,17 +750,15 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       vertical: 10,
                     ),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(10),
+                      color: colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.copy_outlined,
                           size: 18,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onPrimaryContainer,
+                          color: colorScheme.onPrimaryContainer,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -537,416 +766,675 @@ class _AddEditScreenState extends State<AddEditScreen> {
                             l10n.duplicateHint,
                             style: TextStyle(
                               fontSize: 13,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onPrimaryContainer,
+                              color: colorScheme.onPrimaryContainer,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                 ],
-                // === KHU VỰC 1: ẢNH CHỤP SẢN PHẨM ===
+
+                // === KHU VỰC 1: ẢNH SẢN PHẨM ===
                 Center(
-                  child: GestureDetector(
-                    onTap: _showImageSourceSheet,
-                    child: Container(
-                      width: 112,
-                      height: 112,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey.shade400),
-                      ),
-                      child: _imageBytes != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(15),
-                              child: Image.memory(
-                                _imageBytes!,
-                                fit: BoxFit.cover,
-                                gaplessPlayback: true,
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: _showImageSourceSheet,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 112,
+                              height: 112,
+                              decoration: BoxDecoration(
+                                color: colorScheme.primaryContainer
+                                    .withAlpha(85),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: colorScheme.primary.withAlpha(90),
+                                  width: 1.2,
+                                ),
                               ),
-                            )
-                          : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              child: _imageBytes != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(19),
+                                      child: Image.memory(
+                                        _imageBytes!,
+                                        fit: BoxFit.cover,
+                                        gaplessPlayback: true,
+                                      ),
+                                    )
+                                  : Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.add_a_photo_outlined,
+                                          size: 30,
+                                          color: colorScheme.primary,
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          l10n.addPhoto,
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: colorScheme.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                            if (_imageBytes != null)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(5),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: colorScheme.surfaceContainerLow,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    Icons.edit_outlined,
+                                    size: 14,
+                                    color: colorScheme.onPrimary,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (!_isEditing && _imageBytes == null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 13,
+                              color: colorScheme.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Flexible(
+                              child: Text(
+                                l10n.photoScanHint,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // === THẺ 1: THÔNG TIN CHÍNH (BẮT BUỘC) ===
+                _buildSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _nameController,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: InputDecoration(
+                          labelText: l10n.itemNameLabel,
+                          hintText: l10n.itemNameHint,
+                          suffixIcon: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: _buildScanButton(
+                              mode: PackageScanMode.name,
+                              tooltip: l10n.scanNameTooltip,
+                            ),
+                          ),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return l10n.itemNameError;
+                          }
+                          return null;
+                        },
+                      ),
+                      if (_suggestedNames.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.suggestedNamesLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: _suggestedNames.map((suggested) {
+                            return ActionChip(
+                              avatar: Icon(
+                                Icons.auto_awesome,
+                                size: 15,
+                                color: colorScheme.primary,
+                              ),
+                              label: Text(
+                                suggested,
+                                style: const TextStyle(fontSize: 12.5),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                _nameController.text = suggested;
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                      const SizedBox(height: 14),
+
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 11,
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedCategory,
+                              isExpanded: true,
+                              decoration: InputDecoration(
+                                labelText: l10n.categoryLabel,
+                              ),
+                              items: AppConstants.defaultCategories.map((cat) {
+                                return DropdownMenuItem(
+                                  value: cat,
+                                  child: Text(
+                                    localizeCategory(l10n, cat),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                if (value != null) {
+                                  setState(() {
+                                    _selectedCategory = value;
+                                    _userManuallySelectedCategory = true;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 9,
+                            child: _buildQuantityStepper(l10n, colorScheme),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Ô chọn Ngày hết hạn tách rõ vùng chọn lịch & nút quét ML Kit
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _showExpiryError
+                                ? colorScheme.error
+                                : (_expiryDate != null
+                                    ? colorScheme.primary.withAlpha(110)
+                                    : colorScheme.outlineVariant),
+                            width: _showExpiryError ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                borderRadius: const BorderRadius.horizontal(
+                                  left: Radius.circular(11),
+                                ),
+                                onTap: () => _selectDate(isExpiryDate: true),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 10,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.calendar_today_outlined,
+                                        size: 20,
+                                        color: _showExpiryError
+                                            ? colorScheme.error
+                                            : (_expiryDate != null
+                                                ? colorScheme.primary
+                                                : colorScheme.onSurfaceVariant),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              l10n.expiryDateLabel,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: _showExpiryError
+                                                    ? colorScheme.error
+                                                    : colorScheme
+                                                        .onSurfaceVariant,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              _expiryDate != null
+                                                  ? formatDateByLocale(
+                                                      context,
+                                                      _expiryDate!,
+                                                    )
+                                                  : l10n.tapToSelectDate,
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: _expiryDate != null
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w500,
+                                                color: _expiryDate != null
+                                                    ? colorScheme.onSurface
+                                                    : (_showExpiryError
+                                                        ? colorScheme.error
+                                                        : colorScheme.primary),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Icon(
+                                        Icons.chevron_right,
+                                        size: 20,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            Container(
+                              width: 1,
+                              height: 32,
+                              color: colorScheme.outlineVariant,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: _buildScanButton(
+                                mode: PackageScanMode.expiryDate,
+                                tooltip: l10n.scanExpiryTooltip,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_suggestedDates.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          l10n.suggestedDatesLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: _suggestedDates.map((candidate) {
+                            final dateLabel =
+                                formatDateByLocale(context, candidate.date);
+                            final chipText = candidate.isExplicitExpiry
+                                ? '$dateLabel (HSD)'
+                                : dateLabel;
+
+                            return ActionChip(
+                              avatar: Icon(
+                                Icons.event_available,
+                                size: 15,
+                                color: colorScheme.primary,
+                              ),
+                              label: Text(
+                                chipText,
+                                style: const TextStyle(fontSize: 12.5),
+                              ),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () {
+                                setState(() {
+                                  _expiryDate = candidate.date;
+                                  _showExpiryError = false;
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                // === THẺ 2: HẠN SAU MỞ NẮP (PAO - BẬT/TẮT GỌN GÀNG) ===
+                _buildSectionCard(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 6,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        secondary: Icon(
+                          Icons.lock_open_outlined,
+                          color: _paoEnabled
+                              ? colorScheme.primary
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          l10n.paoSectionTitle,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Text(
+                          l10n.paoSwitchSubtitle,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        value: _paoEnabled,
+                        onChanged: (enabled) {
+                          setState(() => _paoEnabled = enabled);
+                        },
+                      ),
+                      if (_paoEnabled) ...[
+                        const Divider(height: 16),
+                        // Chip chọn nhanh các mốc PAO phổ biến (3M / 6M / 12M / 24M)
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: _paoMonthPresets.map((months) {
+                            final isSelected = _paoUnit == 'months' &&
+                                _paoValueController.text.trim() == '$months';
+                            return ChoiceChip(
+                              label: Text('${months}M'),
+                              selected: isSelected,
+                              visualDensity: VisualDensity.compact,
+                              selectedColor: colorScheme.primaryContainer,
+                              labelStyle: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onSurface,
+                              ),
+                              onSelected: (_) {
+                                setState(() {
+                                  _paoUnit = 'months';
+                                  _paoValueController.text = '$months';
+                                  _openedDate ??= DateTime.now();
+                                });
+                              },
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 12),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child: TextFormField(
+                                controller: _paoValueController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                onChanged: (_) => setState(() {}),
+                                decoration: InputDecoration(
+                                  labelText: l10n.paoValueLabel,
+                                  hintText: '6',
+                                  isDense: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 3,
+                              child: DropdownButtonFormField<String>(
+                                value: _paoUnit,
+                                decoration: InputDecoration(
+                                  labelText: l10n.unitLabel,
+                                  isDense: true,
+                                ),
+                                items: [
+                                  DropdownMenuItem(
+                                    value: 'months',
+                                    child: Text(l10n.unitMonths),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'days',
+                                    child: Text(l10n.unitDays),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'hours',
+                                    child: Text(l10n.unitHours),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value != null) {
+                                    setState(() => _paoUnit = value);
+                                  }
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 3,
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 10,
+                                  ),
+                                  side: BorderSide(
+                                    color: colorScheme.outlineVariant,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.calendar_month_outlined,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _openedDate != null
+                                      ? formatDateByLocale(
+                                          context,
+                                          _openedDate!,
+                                        )
+                                      : l10n.openedDateBtn,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                onPressed: () =>
+                                    _selectDate(isExpiryDate: false),
+                              ),
+                            ),
+                            if (_paoUnit == 'hours') ...[
+                              const SizedBox(width: 8),
+                              Expanded(
+                                flex: 2,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                      horizontal: 8,
+                                    ),
+                                    side: BorderSide(
+                                      color: colorScheme.outlineVariant,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.access_time, size: 18),
+                                  label: Text(
+                                    _openedDate != null
+                                        ? timeFormat.format(_openedDate!)
+                                        : l10n.timeBtn,
+                                  ),
+                                  onPressed: _selectOpenedTime,
+                                ),
+                              ),
+                            ],
+                            if (_openedDate != null)
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                tooltip: l10n.clearOpenedDate,
+                                onPressed: () =>
+                                    setState(() => _openedDate = null),
+                              ),
+                          ],
+                        ),
+                        if (paoPreview != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.secondaryContainer
+                                  .withAlpha(140),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
                               children: [
                                 Icon(
-                                  Icons.add_a_photo_outlined,
-                                  size: 30,
-                                  color: Colors.grey.shade600,
+                                  Icons.info_outline,
+                                  size: 16,
+                                  color: colorScheme.onSecondaryContainer,
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  l10n.addPhoto,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade600,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    l10n.paoEffectivePreview(
+                                      formatDateByLocale(
+                                        context,
+                                        paoPreview,
+                                        includeTime: _paoUnit == 'hours',
+                                      ),
+                                    ),
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: colorScheme.onSecondaryContainer,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // === KHU VỰC 2: THÔNG TIN BẮT BUỘC ===
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: InputDecoration(
-                    labelText: l10n.itemNameLabel,
-                    hintText: l10n.itemNameHint,
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: _scanningMode == PackageScanMode.name
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.document_scanner_outlined),
-                      tooltip: l10n.scanNameTooltip,
-                      onPressed: _isScanning
-                          ? null
-                          : () => _showScanSheet(PackageScanMode.name),
-                    ),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return l10n.itemNameError;
-                    }
-                    return null;
-                  },
-                ),
-                if (_suggestedNames.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.suggestedNamesLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _suggestedNames.map((suggested) {
-                      return ActionChip(
-                        avatar: const Icon(Icons.auto_awesome, size: 15),
-                        label: Text(
-                          suggested,
-                          style: const TextStyle(fontSize: 12.5),
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () {
-                          _nameController.text = suggested;
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-                const SizedBox(height: 14),
-
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedCategory,
-                        decoration: InputDecoration(
-                          labelText: l10n.categoryLabel,
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: AppConstants.defaultCategories.map((cat) {
-                          return DropdownMenuItem(
-                            value: cat,
-                            child: Text(localizeCategory(l10n, cat)),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _selectedCategory = value);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: _quantityController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: l10n.quantityLabel,
-                          hintText: '1',
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                ListTile(
-                  contentPadding: const EdgeInsets.only(left: 12, right: 4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(color: Colors.grey.shade500),
-                  ),
-                  leading: const Icon(Icons.calendar_today_outlined),
-                  title: Text(l10n.expiryDateLabel),
-                  subtitle: Text(
-                    _expiryDate != null
-                        ? formatDateByLocale(context, _expiryDate!)
-                        : l10n.tapToSelectDate,
-                    style: TextStyle(
-                      color: _expiryDate != null
-                          ? Theme.of(context).colorScheme.onSurface
-                          : Colors.red.shade700,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: _scanningMode == PackageScanMode.expiryDate
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.document_scanner_outlined),
-                        tooltip: l10n.scanExpiryTooltip,
-                        onPressed: _isScanning
-                            ? null
-                            : () => _showScanSheet(PackageScanMode.expiryDate),
-                      ),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: () => _selectDate(isExpiryDate: true),
-                ),
-                if (_suggestedDates.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    l10n.suggestedDatesLabel,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: _suggestedDates.map((candidate) {
-                      final dateLabel =
-                          formatDateByLocale(context, candidate.date);
-                      final chipText = candidate.isExplicitExpiry
-                          ? '$dateLabel (HSD)'
-                          : dateLabel;
-
-                      return ActionChip(
-                        avatar: const Icon(Icons.event_available, size: 15),
-                        label: Text(
-                          chipText,
-                          style: const TextStyle(fontSize: 12.5),
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () {
-                          setState(() => _expiryDate = candidate.date);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-                const SizedBox(height: 22),
-
-                // === KHU VỰC 3: HẠN SAU MỞ NẮP (PAO) ===
-                Text(
-                  l10n.paoSectionTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextFormField(
-                        controller: _paoValueController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: l10n.paoValueLabel,
-                          hintText: '6',
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
-                      child: DropdownButtonFormField<String>(
-                        value: _paoUnit,
-                        decoration: InputDecoration(
-                          labelText: l10n.unitLabel,
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: [
-                          DropdownMenuItem(
-                            value: 'months',
-                            child: Text(l10n.unitMonths),
-                          ),
-                          DropdownMenuItem(
-                            value: 'days',
-                            child: Text(l10n.unitDays),
-                          ),
-                          DropdownMenuItem(
-                            value: 'hours',
-                            child: Text(l10n.unitHours),
                           ),
                         ],
-                        onChanged: (value) {
-                          if (value != null) {
-                            setState(() => _paoUnit = value);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: 14,
-                            horizontal: 10,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
+                // === THẺ 3: CHỦ SỞ HỮU, VỊ TRÍ & GHI CHÚ ===
+                _buildSectionCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TagSelectorSection(
+                        title: l10n.ownerSectionTitle,
+                        options: _availableOwners,
+                        selectedValue: _selectedOwner,
+                        labelBuilder: (owner) => localizeOwner(l10n, owner),
+                        addButtonLabel: l10n.newOwner,
+                        addButtonIcon: Icons.add,
+                        onSelected: (val) =>
+                            setState(() => _selectedOwner = val),
+                        onAddPressed: () => _showAddTagDialog(
+                          title: l10n.addNewOwnerTitle,
+                          hintText: l10n.addNewOwnerHint,
+                          isOwner: true,
                         ),
-                        icon: const Icon(Icons.lock_open_outlined, size: 18),
-                        label: Text(
-                          _openedDate != null
-                              ? formatDateByLocale(context, _openedDate!)
-                              : l10n.openedDateBtn,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onPressed: () => _selectDate(isExpiryDate: false),
                       ),
-                    ),
-                    if (_paoUnit == 'hours') ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 14,
-                              horizontal: 8,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          icon: const Icon(Icons.access_time, size: 18),
-                          label: Text(
-                            _openedDate != null
-                                ? timeFormat.format(_openedDate!)
-                                : l10n.timeBtn,
-                          ),
-                          onPressed: _selectOpenedTime,
+                      const Divider(height: 24),
+                      TagSelectorSection(
+                        title: l10n.locationSectionTitle,
+                        options: _availableLocations,
+                        selectedValue: _selectedLocation,
+                        labelBuilder: (loc) => localizeLocation(l10n, loc),
+                        addButtonLabel: l10n.newLocation,
+                        addButtonIcon: Icons.add_location_alt_outlined,
+                        onSelected: (val) =>
+                            setState(() => _selectedLocation = val),
+                        onAddPressed: () => _showAddTagDialog(
+                          title: l10n.addNewLocationTitle,
+                          hintText: l10n.addNewLocationHint,
+                          isOwner: false,
+                        ),
+                      ),
+                      const Divider(height: 24),
+                      Text(
+                        l10n.notesSectionTitle,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _notesController,
+                        minLines: 2,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration: InputDecoration(
+                          hintText: l10n.notesHint,
                         ),
                       ),
                     ],
-                    if (_openedDate != null)
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        tooltip: l10n.clearOpenedDate,
-                        onPressed: () => setState(() => _openedDate = null),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-
-                // === KHU VỰC 4: CHỦ SỞ HỮU (DÙNG WIDGET TÁI SỬ DỤNG) ===
-                TagSelectorSection(
-                  title: l10n.ownerSectionTitle,
-                  options: _availableOwners,
-                  selectedValue: _selectedOwner,
-                  labelBuilder: (owner) => localizeOwner(l10n, owner),
-                  addButtonLabel: l10n.newOwner,
-                  addButtonIcon: Icons.add,
-                  onSelected: (val) => setState(() => _selectedOwner = val),
-                  onAddPressed: () => _showAddTagDialog(
-                    title: l10n.addNewOwnerTitle,
-                    hintText: l10n.addNewOwnerHint,
-                    isOwner: true,
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 12),
 
-                // === KHU VỰC 5: VỊ TRÍ CẤT GIỮ (DÙNG WIDGET TÁI SỬ DỤNG) ===
-                TagSelectorSection(
-                  title: l10n.locationSectionTitle,
-                  options: _availableLocations,
-                  selectedValue: _selectedLocation,
-                  labelBuilder: (loc) => localizeLocation(l10n, loc),
-                  addButtonLabel: l10n.newLocation,
-                  addButtonIcon: Icons.add_location_alt_outlined,
-                  onSelected: (val) => setState(() => _selectedLocation = val),
-                  onAddPressed: () => _showAddTagDialog(
-                    title: l10n.addNewLocationTitle,
-                    hintText: l10n.addNewLocationHint,
-                    isOwner: false,
-                  ),
-                ),
-                const SizedBox(height: 22),
-
-                // === KHU VỰC 6: MỐC CẢNH BÁO & LỊCH ĐIỆN THOẠI ===
-                AlertsSection(
-                  alerts: _alerts,
-                  onChanged: (updatedAlerts) {
-                    setState(() => _alerts = updatedAlerts);
-                  },
-                ),
-                const SizedBox(height: 18),
-
-                // === KHU VỰC 7: GHI CHÚ ===
-                Text(
-                  l10n.notesSectionTitle,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _notesController,
-                  minLines: 2,
-                  maxLines: 4,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    hintText: l10n.notesHint,
-                    border: const OutlineInputBorder(),
+                // === THẺ 4: MỐC CẢNH BÁO & LỊCH ĐIỆN THOẠI ===
+                _buildSectionCard(
+                  child: AlertsSection(
+                    alerts: _alerts,
+                    onChanged: (updatedAlerts) {
+                      setState(() => _alerts = updatedAlerts);
+                    },
                   ),
                 ),
               ],
@@ -959,17 +1447,29 @@ class _AddEditScreenState extends State<AddEditScreen> {
         child: Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
+            color: colorScheme.surface,
+            border: Border(
+              top: BorderSide(
+                color: colorScheme.outlineVariant.withAlpha(150),
+              ),
+            ),
           ),
           child: SizedBox(
-            height: 48,
+            height: 50,
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
               onPressed: _saveItem,
               icon: const Icon(Icons.check),
               label: Text(
                 _isEditing ? l10n.saveChanges : l10n.addItem,
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),

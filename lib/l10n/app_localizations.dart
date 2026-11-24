@@ -1159,6 +1159,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No valid expiry date found in the image.'**
   String get scanExpiryNoResult;
+
+  /// No description provided for @photoScanHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Snap the front label to auto-suggest name & category'**
+  String get photoScanHint;
+
+  /// No description provided for @paoSwitchSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Track shorter expiry after opening'**
+  String get paoSwitchSubtitle;
+
+  /// No description provided for @paoEffectivePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective expiry: {date}'**
+  String paoEffectivePreview(String date);
+
+  /// No description provided for @alertsCalendarHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the Calendar button on each alert to sync with your phone.'**
+  String get alertsCalendarHint;
+
+  /// No description provided for @quickAlertsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick add:'**
+  String get quickAlertsLabel;
 }
 
 class _AppLocalizationsDelegate

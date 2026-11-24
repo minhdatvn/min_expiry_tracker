@@ -198,5 +198,10 @@
   "scanNameTooltip": "Quét tên sản phẩm",
   "scanExpiryTooltip": "Quét ngày hết hạn",
   "scanNameNoResult": "Không tìm thấy tên sản phẩm rõ nét trên ảnh.",
-  "scanExpiryNoResult": "Không tìm thấy ngày hết hạn hợp lệ trên ảnh."
+  "scanExpiryNoResult": "Không tìm thấy ngày hết hạn hợp lệ trên ảnh.",
+  "photoScanHint": "Chụp mặt trước để nhận gợi ý tên & danh mục",
+  "paoSwitchSubtitle": "Theo dõi hạn dùng ngắn hơn sau khi mở nắp",
+  "paoEffectivePreview": "Hạn dùng thực tế: {date}",
+  "alertsCalendarHint": "Chạm nút Lịch trên từng mốc để đồng bộ với Lịch điện thoại.",
+  "quickAlertsLabel": "Thêm nhanh:"
 }

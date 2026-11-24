@@ -640,4 +640,22 @@ class AppLocalizationsVi extends AppLocalizations {
   @override
   String get scanExpiryNoResult =>
       'Không tìm thấy ngày hết hạn hợp lệ trên ảnh.';
+
+  @override
+  String get photoScanHint => 'Chụp mặt trước để nhận gợi ý tên & danh mục';
+
+  @override
+  String get paoSwitchSubtitle => 'Theo dõi hạn dùng ngắn hơn sau khi mở nắp';
+
+  @override
+  String paoEffectivePreview(String date) {
+    return 'Hạn dùng thực tế: $date';
+  }
+
+  @override
+  String get alertsCalendarHint =>
+      'Chạm nút Lịch trên từng mốc để đồng bộ với Lịch điện thoại.';
+
+  @override
+  String get quickAlertsLabel => 'Thêm nhanh:';
 }

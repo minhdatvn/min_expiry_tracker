@@ -443,5 +443,17 @@
   "scanNameTooltip": "Scan product name",
   "scanExpiryTooltip": "Scan expiry date",
   "scanNameNoResult": "No clear product name found in the image.",
-  "scanExpiryNoResult": "No valid expiry date found in the image."
+  "scanExpiryNoResult": "No valid expiry date found in the image.",
+  "photoScanHint": "Snap the front label to auto-suggest name & category",
+  "paoSwitchSubtitle": "Track shorter expiry after opening",
+  "paoEffectivePreview": "Effective expiry: {date}",
+  "@paoEffectivePreview": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "alertsCalendarHint": "Tap the Calendar button on each alert to sync with your phone.",
+  "quickAlertsLabel": "Quick add:"
 }
