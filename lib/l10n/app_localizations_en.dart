@@ -610,4 +610,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String monthsAgo(int count) {
     return '${count}mo ago';
   }
+
+  @override
+  String get scanLabelBtn => 'Scan Label (Name & Expiry)';
+
+  @override
+  String get scanningLabel => 'Scanning text from image...';
+
+  @override
+  String get suggestedNamesLabel => 'Suggested names:';
+
+  @override
+  String get suggestedDatesLabel => 'Detected dates:';
+
+  @override
+  String get scanNoResult =>
+      'No clear product name or expiry date found in the image.';
+
+  @override
+  String get scanNameTooltip => 'Scan product name';
+
+  @override
+  String get scanExpiryTooltip => 'Scan expiry date';
+
+  @override
+  String get scanNameNoResult => 'No clear product name found in the image.';
+
+  @override
+  String get scanExpiryNoResult => 'No valid expiry date found in the image.';
 }

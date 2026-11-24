@@ -44,6 +44,10 @@ class ItemCard extends StatelessWidget {
       if (days <= sortedAlerts.last) {
         return orangeWarn;
       }
+    } else {
+      // Ngưỡng dự phòng khi vật phẩm không có mốc nhắc theo ngày
+      if (days <= 3) return redSoon;
+      if (days <= 7) return orangeWarn;
     }
 
     return greenSafe;

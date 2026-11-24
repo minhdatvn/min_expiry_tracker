@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+
 import '../constants/app_constants.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
 import '../services/item_repository.dart';
+import '../services/package_scanner_service.dart';
 import '../widgets/alerts_section.dart';
 import '../widgets/tag_selector_section.dart';
 
@@ -51,6 +54,10 @@ class _AddEditScreenState extends State<AddEditScreen> {
 
   String? _imageBase64;
   Uint8List? _imageBytes;
+  PackageScanMode? _scanningMode;
+  bool get _isScanning => _scanningMode != null;
+  List<String> _suggestedNames = const [];
+  List<ScannedDateCandidate> _suggestedDates = const [];
 
   bool get _isEditing => widget.existingItem != null && !widget.isDuplicate;
 
@@ -125,14 +132,20 @@ class _AddEditScreenState extends State<AddEditScreen> {
     super.dispose();
   }
 
-  // --- 1. CHỌN HOẶC CHỤP ẢNH VÀ NÉN BASE64 ---
+  // --- 1. CHỌN ẢNH ĐẠI DIỆN & 2 LUỒNG QUÉT CHUYÊN BIỆT (TÊN / HSD) ---
   Future<void> _pickImage(ImageSource source) async {
+    if (_isScanning) return;
+
+    // Chỉ tự động gợi ý tên khi chụp/chọn ảnh lần đầu và ô Tên đang trống
+    final bool shouldAutoScanName =
+        _imageBytes == null && _nameController.text.trim().isEmpty;
+
     try {
       final picker = ImagePicker();
       final XFile? pickedFile = await picker.pickImage(
         source: source,
-        maxWidth: 400,
-        maxHeight: 400,
+        maxWidth: 600,
+        maxHeight: 600,
         imageQuality: 65,
       );
 
@@ -145,6 +158,20 @@ class _AddEditScreenState extends State<AddEditScreen> {
         _imageBytes = bytes;
         _imageBase64 = base64Encode(bytes);
       });
+
+      if (shouldAutoScanName) {
+        setState(() => _scanningMode = PackageScanMode.name);
+        try {
+          final names = await PackageScannerService.instance
+              .scanProductName(pickedFile.path);
+          if (!mounted || names.isEmpty) return;
+          setState(() => _suggestedNames = names);
+        } finally {
+          if (mounted && _scanningMode == PackageScanMode.name) {
+            setState(() => _scanningMode = null);
+          }
+        }
+      }
     } catch (_) {
       // Bỏ qua êm ái nếu thiết bị từ chối quyền Camera/Thư viện
     }
@@ -154,14 +181,14 @@ class _AddEditScreenState extends State<AddEditScreen> {
     final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
+      builder: (sheetContext) => SafeArea(
         child: Wrap(
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
               title: Text(l10n.takePhoto),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 _pickImage(ImageSource.camera);
               },
             ),
@@ -169,7 +196,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
               leading: const Icon(Icons.photo_library_outlined),
               title: Text(l10n.chooseFromGallery),
               onTap: () {
-                Navigator.pop(context);
+                Navigator.pop(sheetContext);
                 _pickImage(ImageSource.gallery);
               },
             ),
@@ -181,13 +208,93 @@ class _AddEditScreenState extends State<AddEditScreen> {
                   style: const TextStyle(color: Colors.red),
                 ),
                 onTap: () {
-                  Navigator.pop(context);
+                  Navigator.pop(sheetContext);
                   setState(() {
                     _imageBytes = null;
                     _imageBase64 = null;
                   });
                 },
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _scanField(ImageSource source, PackageScanMode mode) async {
+    final l10n = AppLocalizations.of(context)!;
+    try {
+      final picker = ImagePicker();
+      // Ảnh quét tạm giữ độ phân giải cao (1600px) để chữ in phun nhỏ vẫn rõ nét
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+
+      if (pickedFile == null || !mounted) return;
+
+      setState(() => _scanningMode = mode);
+
+      if (mode == PackageScanMode.name) {
+        final names = await PackageScannerService.instance
+            .scanProductName(pickedFile.path);
+        if (!mounted) return;
+
+        if (names.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.scanNameNoResult)),
+          );
+        } else {
+          setState(() => _suggestedNames = names);
+        }
+      } else {
+        final dates = await PackageScannerService.instance
+            .scanExpiryDate(pickedFile.path);
+        if (!mounted) return;
+
+        if (dates.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.scanExpiryNoResult)),
+          );
+        } else {
+          setState(() {
+            _suggestedDates = dates;
+            _expiryDate = dates.first.date;
+          });
+        }
+      }
+    } catch (_) {
+      // Bỏ qua êm ái nếu thiết bị từ chối quyền Camera/Thư viện
+    } finally {
+      if (mounted) setState(() => _scanningMode = null);
+    }
+  }
+
+  void _showScanSheet(PackageScanMode mode) {
+    final l10n = AppLocalizations.of(context)!;
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: Text(l10n.takePhoto),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _scanField(ImageSource.camera, mode);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: Text(l10n.chooseFromGallery),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _scanField(ImageSource.gallery, mode);
+              },
+            ),
           ],
         ),
       ),
@@ -493,6 +600,19 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     labelText: l10n.itemNameLabel,
                     hintText: l10n.itemNameHint,
                     border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: _scanningMode == PackageScanMode.name
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.document_scanner_outlined),
+                      tooltip: l10n.scanNameTooltip,
+                      onPressed: _isScanning
+                          ? null
+                          : () => _showScanSheet(PackageScanMode.name),
+                    ),
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -501,6 +621,35 @@ class _AddEditScreenState extends State<AddEditScreen> {
                     return null;
                   },
                 ),
+                if (_suggestedNames.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.suggestedNamesLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: _suggestedNames.map((suggested) {
+                      return ActionChip(
+                        avatar: const Icon(Icons.auto_awesome, size: 15),
+                        label: Text(
+                          suggested,
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          _nameController.text = suggested;
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
                 const SizedBox(height: 14),
 
                 Row(
@@ -544,7 +693,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
                 const SizedBox(height: 14),
 
                 ListTile(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                  contentPadding: const EdgeInsets.only(left: 12, right: 4),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                     side: BorderSide(color: Colors.grey.shade500),
@@ -562,9 +711,64 @@ class _AddEditScreenState extends State<AddEditScreen> {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: _scanningMode == PackageScanMode.expiryDate
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.document_scanner_outlined),
+                        tooltip: l10n.scanExpiryTooltip,
+                        onPressed: _isScanning
+                            ? null
+                            : () => _showScanSheet(PackageScanMode.expiryDate),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: () => _selectDate(isExpiryDate: true),
                 ),
+                if (_suggestedDates.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.suggestedDatesLabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: _suggestedDates.map((candidate) {
+                      final dateLabel =
+                          formatDateByLocale(context, candidate.date);
+                      final chipText = candidate.isExplicitExpiry
+                          ? '$dateLabel (HSD)'
+                          : dateLabel;
+
+                      return ActionChip(
+                        avatar: const Icon(Icons.event_available, size: 15),
+                        label: Text(
+                          chipText,
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () {
+                          setState(() => _expiryDate = candidate.date);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ],
                 const SizedBox(height: 22),
 
                 // === KHU VỰC 3: HẠN SAU MỞ NẮP (PAO) ===

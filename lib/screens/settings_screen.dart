@@ -5,6 +5,7 @@ import '../services/locale_service.dart';
 import '../services/notify_service.dart';
 import '../services/theme_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../l10n/l10n_helpers.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -232,43 +233,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Xử lý khi bấm nút Khôi phục
+  // Xử lý khi bấm nút Khôi phục (chọn file -> kiểm tra & xem trước -> xác nhận -> khôi phục)
   Future<void> _handleRestore() async {
     final l10n = AppLocalizations.of(context)!;
+    setState(() => _isBusy = true);
+
+    BackupPreview? preview;
+    try {
+      preview = await BackupService.instance.pickAndInspectBackup();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.restoreError),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+
+    if (preview == null || !mounted) return;
+    final validPreview = preview;
+
+    final dateText = validPreview.exportedAt != null
+        ? formatDateByLocale(
+            context,
+            validPreview.exportedAt!,
+            includeTime: true,
+          )
+        : '-';
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.restoreDialogTitle),
-        content: Text(l10n.restoreDialogContent),
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.incomingBackupTitle),
+        content: Text(
+          l10n.incomingBackupContent(dateText, validPreview.items.length),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: Text(l10n.cancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n.chooseFile),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l10n.restoreNow),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
 
     setState(() => _isBusy = true);
     try {
-      final restoredCount = await BackupService.instance.importBackup();
+      final restoredCount =
+          await BackupService.instance.restoreFromPreview(validPreview);
       if (!mounted) return;
-
-      if (restoredCount != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.restoreSuccess(restoredCount)),
-            backgroundColor: Colors.green.shade700,
-          ),
-        );
-      }
-    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.restoreSuccess(restoredCount)),
+          backgroundColor: Colors.green.shade700,
+        ),
+      );
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

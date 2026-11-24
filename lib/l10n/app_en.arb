@@ -434,5 +434,14 @@
         "type": "int"
       }
     }
-  }
+  },
+  "scanLabelBtn": "Scan Label (Name & Expiry)",
+  "scanningLabel": "Scanning text from image...",
+  "suggestedNamesLabel": "Suggested names:",
+  "suggestedDatesLabel": "Detected dates:",
+  "scanNoResult": "No clear product name or expiry date found in the image.",
+  "scanNameTooltip": "Scan product name",
+  "scanExpiryTooltip": "Scan expiry date",
+  "scanNameNoResult": "No clear product name found in the image.",
+  "scanExpiryNoResult": "No valid expiry date found in the image."
 }

@@ -186,8 +186,17 @@
   "incomingBackupContent": "Ngày sao lưu: {date}\nSố vật phẩm: {count}\n\nToàn bộ dữ liệu hiện tại trên máy sẽ được thay thế bằng bản sao lưu này.",
   "restoreNow": "Khôi phục ngay",
   "restoringBackup": "Đang khôi phục dữ liệu...",
-  "moreThanYearsLeft": "> {count} năm",
+  "moreThanYearsLeft": "Trên {count} năm",
   "monthsLeft": "Còn {count} tháng",
   "moreThanYearsAgo": "Quá {count} năm",
-  "monthsAgo": "Quá {count} tháng"
+  "monthsAgo": "Quá {count} tháng",
+  "scanLabelBtn": "Quét nhãn (Tên & HSD)",
+  "scanningLabel": "Đang quét chữ từ ảnh...",
+  "suggestedNamesLabel": "Gợi ý tên từ ảnh:",
+  "suggestedDatesLabel": "Ngày quét được:",
+  "scanNoResult": "Không tìm thấy tên hoặc ngày hết hạn rõ nét trên ảnh.",
+  "scanNameTooltip": "Quét tên sản phẩm",
+  "scanExpiryTooltip": "Quét ngày hết hạn",
+  "scanNameNoResult": "Không tìm thấy tên sản phẩm rõ nét trên ảnh.",
+  "scanExpiryNoResult": "Không tìm thấy ngày hết hạn hợp lệ trên ảnh."
 }

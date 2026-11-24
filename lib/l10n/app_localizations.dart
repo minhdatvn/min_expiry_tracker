@@ -1105,6 +1105,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count}mo ago'**
   String monthsAgo(int count);
+
+  /// No description provided for @scanLabelBtn.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan Label (Name & Expiry)'**
+  String get scanLabelBtn;
+
+  /// No description provided for @scanningLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Scanning text from image...'**
+  String get scanningLabel;
+
+  /// No description provided for @suggestedNamesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Suggested names:'**
+  String get suggestedNamesLabel;
+
+  /// No description provided for @suggestedDatesLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Detected dates:'**
+  String get suggestedDatesLabel;
+
+  /// No description provided for @scanNoResult.
+  ///
+  /// In en, this message translates to:
+  /// **'No clear product name or expiry date found in the image.'**
+  String get scanNoResult;
+
+  /// No description provided for @scanNameTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan product name'**
+  String get scanNameTooltip;
+
+  /// No description provided for @scanExpiryTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan expiry date'**
+  String get scanExpiryTooltip;
+
+  /// No description provided for @scanNameNoResult.
+  ///
+  /// In en, this message translates to:
+  /// **'No clear product name found in the image.'**
+  String get scanNameNoResult;
+
+  /// No description provided for @scanExpiryNoResult.
+  ///
+  /// In en, this message translates to:
+  /// **'No valid expiry date found in the image.'**
+  String get scanExpiryNoResult;
 }
 
 class _AppLocalizationsDelegate

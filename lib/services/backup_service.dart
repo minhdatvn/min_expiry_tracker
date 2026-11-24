@@ -181,8 +181,8 @@ class BackupService {
     return savedItems.length;
   }
 
-  // Giữ nguyên cổng chọn file thủ công cho màn hình Cài đặt
-  Future<int?> importBackup() async {
+  // Chọn file thủ công và kiểm tra hợp lệ trước khi hiện hộp thoại xác nhận
+  Future<BackupPreview?> pickAndInspectBackup() async {
     final FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.any,
     );
@@ -191,7 +191,6 @@ class BackupService {
       return null;
     }
 
-    final preview = await inspectBackupFile(result.files.single.path!);
-    return await restoreFromPreview(preview);
+    return await inspectBackupFile(result.files.single.path!);
   }
 }

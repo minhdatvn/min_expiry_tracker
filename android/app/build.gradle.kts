@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.min.expiry_tracker"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     // Thay flutter.ndkVersion bằng phiên bản cao nhất mà các plugin yêu cầu
     ndkVersion = "27.0.12077973"
 

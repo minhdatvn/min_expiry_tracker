@@ -594,7 +594,7 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String moreThanYearsLeft(int count) {
-    return '> $count năm';
+    return 'Trên $count năm';
   }
 
   @override
@@ -611,4 +611,33 @@ class AppLocalizationsVi extends AppLocalizations {
   String monthsAgo(int count) {
     return 'Quá $count tháng';
   }
+
+  @override
+  String get scanLabelBtn => 'Quét nhãn (Tên & HSD)';
+
+  @override
+  String get scanningLabel => 'Đang quét chữ từ ảnh...';
+
+  @override
+  String get suggestedNamesLabel => 'Gợi ý tên từ ảnh:';
+
+  @override
+  String get suggestedDatesLabel => 'Ngày quét được:';
+
+  @override
+  String get scanNoResult =>
+      'Không tìm thấy tên hoặc ngày hết hạn rõ nét trên ảnh.';
+
+  @override
+  String get scanNameTooltip => 'Quét tên sản phẩm';
+
+  @override
+  String get scanExpiryTooltip => 'Quét ngày hết hạn';
+
+  @override
+  String get scanNameNoResult => 'Không tìm thấy tên sản phẩm rõ nét trên ảnh.';
+
+  @override
+  String get scanExpiryNoResult =>
+      'Không tìm thấy ngày hết hạn hợp lệ trên ảnh.';
 }
