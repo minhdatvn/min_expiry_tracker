@@ -3,10 +3,7 @@ import '../constants/app_constants.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
-import '../services/calendar_service.dart';
-import '../services/database_service.dart';
-import '../services/log_service.dart';
-import '../services/notify_service.dart';
+import '../services/item_repository.dart';
 import '../widgets/item_card.dart';
 import 'add_edit_screen.dart';
 import 'log_screen.dart';
@@ -102,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadItems() async {
     try {
-      final items = await DatabaseService.instance.getAllItems();
+      final items = await ItemRepository.instance.getAllItems();
       if (!mounted) return;
 
       // Chỉ tính lại bộ lọc đúng 1 lần khi dữ liệu từ SQLite thay đổi
@@ -466,54 +463,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (result == null) return;
 
-    if (result == 'delete' && existingItem?.id != null) {
-      await DatabaseService.instance.deleteItem(existingItem!.id!);
-      await NotifyService.instance.cancelItemAlerts(existingItem.id!);
-      await CalendarService.instance.deleteItemCalendarEvents(existingItem);
-      await LogService.instance.addLog(
-        'DELETE',
-        encodeLogMessage('logItemDeleted', {'name': existingItem.name}),
-      );
+    if (result == 'delete' && existingItem != null) {
+      await ItemRepository.instance.deleteItem(existingItem);
     } else if (result is HouseholdItem) {
+      final ItemOperationResult opResult;
       if (existingItem == null) {
-        final newId = await DatabaseService.instance.insertItem(result);
-        var savedItem = result.copyWith(id: newId);
-
-        final syncResult = await CalendarService.instance
-            .syncItemCalendarEvents(savedItem);
-        savedItem = savedItem.copyWith(alerts: syncResult.alerts);
-        await DatabaseService.instance.updateItem(savedItem);
-
-        await NotifyService.instance.scheduleItemAlerts(savedItem);
-        await LogService.instance.addLog(
-          'ADD',
-          encodeLogMessage('logItemAdded', {
-            'name': savedItem.name,
-            'category': savedItem.category,
-          }),
-        );
-
-        if (syncResult.hasError && mounted) {
-          _showCalendarError(syncResult.errorKey!, savedItem.name);
-        }
+        opResult = await ItemRepository.instance.addItem(result);
       } else {
-        final syncResult = await CalendarService.instance
-            .syncItemCalendarEvents(
-              result,
-              previousAlerts: existingItem.alerts,
-            );
-        final updatedItem = result.copyWith(alerts: syncResult.alerts);
-
-        await DatabaseService.instance.updateItem(updatedItem);
-        await NotifyService.instance.scheduleItemAlerts(updatedItem);
-        await LogService.instance.addLog(
-          'UPDATE',
-          encodeLogMessage('logItemUpdated', {'name': updatedItem.name}),
+        opResult = await ItemRepository.instance.updateItem(
+          result,
+          previous: existingItem,
         );
+      }
 
-        if (syncResult.hasError && mounted) {
-          _showCalendarError(syncResult.errorKey!, updatedItem.name);
-        }
+      if (opResult.hasCalendarError && mounted) {
+        _showCalendarError(opResult.calendarErrorKey!, opResult.item.name);
       }
     }
 

@@ -7,7 +7,7 @@ import '../constants/app_constants.dart';
 import '../l10n/app_localizations.dart';
 import '../l10n/l10n_helpers.dart';
 import '../models/item_model.dart';
-import '../services/database_service.dart';
+import '../services/item_repository.dart';
 import '../widgets/alerts_section.dart';
 import '../widgets/tag_selector_section.dart';
 
@@ -83,8 +83,9 @@ class _AddEditScreenState extends State<AddEditScreen> {
   }
 
   Future<void> _loadSavedSuggestions() async {
-    final savedOwners = await DatabaseService.instance.getDistinctOwners();
-    final savedLocations = await DatabaseService.instance.getDistinctLocations();
+    final tags = await ItemRepository.instance.getSavedTags();
+    final savedOwners = tags.owners;
+    final savedLocations = tags.locations;
 
     if (!mounted) return;
     setState(() {
