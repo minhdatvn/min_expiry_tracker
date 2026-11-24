@@ -178,7 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // So sánh trực tiếp mốc ngày hết hạn thay vì gọi DateTime.now() nhiều lần qua timeRemaining
     filtered.sort(
-      (a, b) => a.effectiveExpiryDate.compareTo(b.effectiveExpiryDate),
+      (a, b) => a.effectiveDeadline.compareTo(b.effectiveDeadline),
     );
     return filtered;
   }
@@ -368,16 +368,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       final displayOwner = localizeOwner(l10n, ownerKey);
                       final ownerItems = entry.value;
 
-                      final expiredCount = ownerItems
-                          .where((i) => i.timeRemaining.isNegative)
-                          .length;
-                      final soonCount = ownerItems
-                          .where(
-                            (i) =>
-                                !i.timeRemaining.isNegative &&
-                                i.daysRemaining <= 7,
-                          )
-                          .length;
+                      final expiredCount =
+                          ownerItems.where((i) => i.isExpired).length;
+                      final soonCount =
+                          ownerItems.where((i) => i.isExpiringSoon()).length;
 
                       return ListTile(
                         contentPadding: EdgeInsets.zero,

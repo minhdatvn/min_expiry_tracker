@@ -222,14 +222,20 @@ class HouseholdItem {
     return expiryDate;
   }
 
+  // Mốc hết hạn thực tế đầy đủ giờ/phút (vật phẩm theo ngày tính đến cuối ngày 23:59)
+  DateTime get effectiveDeadline {
+    final expiry = effectiveExpiryDate;
+    if (isHourlyPao) return expiry;
+    return DateTime(expiry.year, expiry.month, expiry.day, 23, 59);
+  }
+
   // Tính chính xác thời điểm nhắc nhở (dùng chung cho cả Thông báo app & Lịch điện thoại)
   DateTime calculateAlertTime(AlertMilestone alert) {
-    final expiry = effectiveExpiryDate;
     if (alert.unit == 'hours') {
-      return expiry.subtract(Duration(hours: alert.value));
+      return effectiveDeadline.subtract(Duration(hours: alert.value));
     }
     // Với mốc theo ngày -> nhắc vào lúc 9:00 sáng của ngày đó
-    final alertDay = expiry.subtract(Duration(days: alert.value));
+    final alertDay = effectiveExpiryDate.subtract(Duration(days: alert.value));
     return DateTime(alertDay.year, alertDay.month, alertDay.day, 9, 0);
   }
 
@@ -244,6 +250,19 @@ class HouseholdItem {
       effectiveExpiryDate.day,
     );
     return target.difference(today).inDays;
+  }
+
+  // Nguồn kiểm tra trạng thái thống nhất cho toàn bộ ứng dụng
+  bool get isExpired {
+    if (isHourlyPao) return timeRemaining.isNegative;
+    return daysRemaining < 0;
+  }
+
+  bool get isExpiringToday => !isExpired && daysRemaining == 0;
+
+  bool isExpiringSoon({int withinDays = 7}) {
+    if (isExpired) return false;
+    return daysRemaining <= withinDays;
   }
 
   // Đóng gói dữ liệu để lưu vào SQLite hoặc xuất JSON sao lưu

@@ -30,6 +30,7 @@ class NotifyService {
 
   Future<void> init() async {
     tz_data.initializeTimeZones();
+    _configureLocalTimeZone();
 
     const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidInit);
@@ -40,6 +41,52 @@ class NotifyService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
+  }
+
+  // Tự động thiết lập tz.local khớp múi giờ thiết bị mà không cần thêm plugin native
+  void _configureLocalTimeZone() {
+    final now = DateTime.now();
+    final locations = tz.timeZoneDatabase.locations;
+
+    // 1. Khớp trực tiếp nếu hệ thống trả về tên chuẩn IANA (VD: Asia/Ho_Chi_Minh)
+    final directMatch = locations[now.timeZoneName];
+    if (directMatch != null) {
+      tz.setLocalLocation(directMatch);
+      return;
+    }
+
+    final targetOffsetMs = now.timeZoneOffset.inMilliseconds;
+
+    // 2. Với múi giờ chẵn giờ (VD: UTC+7), ưu tiên chuẩn Etc/GMT để lịch hiển thị gọn GMT+07:00
+    if (targetOffsetMs % Duration.millisecondsPerHour == 0) {
+      final offsetHours = targetOffsetMs ~/ Duration.millisecondsPerHour;
+      final etcName = offsetHours == 0
+          ? 'UTC'
+          : 'Etc/GMT${offsetHours > 0 ? '-$offsetHours' : '+${offsetHours.abs()}'}';
+      final etcMatch = locations[etcName];
+      if (etcMatch != null &&
+          etcMatch.currentTimeZone.offset == targetOffsetMs) {
+        tz.setLocalLocation(etcMatch);
+        return;
+      }
+    }
+
+    // 3. Dự phòng cho múi giờ lẻ (VD: UTC+5:30): tìm khu vực khớp độ lệch offset
+    tz.Location? fallbackByOffset;
+    for (final location in locations.values) {
+      final currentTz = location.currentTimeZone;
+      if (currentTz.offset == targetOffsetMs) {
+        if (currentTz.abbreviation == now.timeZoneName) {
+          tz.setLocalLocation(location);
+          return;
+        }
+        fallbackByOffset ??= location;
+      }
+    }
+
+    if (fallbackByOffset != null) {
+      tz.setLocalLocation(fallbackByOffset);
+    }
   }
 
   Future<void> showTestNotification() async {

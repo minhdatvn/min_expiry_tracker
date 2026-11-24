@@ -32,7 +32,7 @@ class ItemCard extends StatelessWidget {
     }
 
     final days = item.daysRemaining;
-    if (days <= 0) return redCritical;
+    if (item.isExpired || item.isExpiringToday) return redCritical;
 
     if (item.alertDays.isNotEmpty) {
       final sortedAlerts = List<int>.from(item.alertDays)..sort();

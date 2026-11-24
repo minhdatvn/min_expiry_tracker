@@ -259,6 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final sectionTitleColor = Theme.of(context).colorScheme.primary;
     final l10n = AppLocalizations.of(context)!;
     final currentLocale = LocaleService.instance.localeNotifier.value;
 
@@ -276,10 +277,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 l10n.languageSection,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal,
+                  color: sectionTitleColor,
                 ),
               ),
             ),
@@ -293,7 +294,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: _showLanguageSheet,
             ),
 
-            const Divider(height: 1),
+            const Divider(height: 24),
+
+            // --- KHU VỰC 2: GIAO DIỆN ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Text(
+                l10n.appearanceSection,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: sectionTitleColor,
+                ),
+              ),
+            ),
 
             ListTile(
               leading: const Icon(Icons.dark_mode_outlined),
@@ -308,18 +322,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               enabled: !_isBusy,
               onTap: _showThemeSheet,
             ),
-            
+
             const Divider(height: 24),
 
-            // --- KHU VỰC 2: DỮ LIỆU & SAO LƯU ---
+            // --- KHU VỰC 3: DỮ LIỆU & SAO LƯU ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Text(
                 l10n.dataAndBackup,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal,
+                  color: sectionTitleColor,
                 ),
               ),
             ),
@@ -344,15 +358,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const Divider(height: 24),
 
-            // --- KHU VỰC 3: THÔNG TIN ỨNG DỤNG ---
+            // --- KHU VỰC 4: THÔNG TIN ỨNG DỤNG ---
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Text(
                 l10n.aboutSection,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal,
+                  color: sectionTitleColor,
                 ),
               ),
             ),
