@@ -1045,6 +1045,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Location'**
   String get filterLocation;
+
+  /// No description provided for @duplicateItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate Item'**
+  String get duplicateItem;
+
+  /// No description provided for @duplicateHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied from existing item. Please select the new expiry date.'**
+  String get duplicateHint;
 }
 
 class _AppLocalizationsDelegate

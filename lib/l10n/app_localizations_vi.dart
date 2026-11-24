@@ -568,4 +568,11 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get filterLocation => 'Vị trí';
+
+  @override
+  String get duplicateItem => 'Nhân bản vật phẩm';
+
+  @override
+  String get duplicateHint =>
+      'Đã sao chép thông tin. Vui lòng chọn ngày hết hạn mới.';
 }

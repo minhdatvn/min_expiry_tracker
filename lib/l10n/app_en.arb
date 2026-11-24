@@ -379,5 +379,7 @@
   "themeDark": "Dark",
   "filterCategory": "Category",
   "filterOwner": "Owner",
-  "filterLocation": "Location"
+  "filterLocation": "Location",
+  "duplicateItem": "Duplicate Item",
+  "duplicateHint": "Copied from existing item. Please select the new expiry date."
 }

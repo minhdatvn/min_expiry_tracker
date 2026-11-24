@@ -447,21 +447,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openAddEditScreen({HouseholdItem? existingItem}) async {
+  Future<void> _openAddEditScreen({
+    HouseholdItem? existingItem,
+    bool isDuplicate = false,
+  }) async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AddEditScreen(existingItem: existingItem),
+        builder: (context) => AddEditScreen(
+          existingItem: existingItem,
+          isDuplicate: isDuplicate,
+        ),
       ),
     );
 
     if (result == null) return;
 
-    if (result == 'delete' && existingItem != null) {
+    if (result == 'duplicate' && existingItem != null) {
+      if (!mounted) return;
+      await _openAddEditScreen(
+        existingItem: existingItem,
+        isDuplicate: true,
+      );
+      return;
+    }
+
+    if (result == 'delete' && existingItem != null && !isDuplicate) {
       await ItemRepository.instance.deleteItem(existingItem);
     } else if (result is HouseholdItem) {
       final ItemOperationResult opResult;
-      if (existingItem == null) {
+      if (existingItem == null || isDuplicate) {
         opResult = await ItemRepository.instance.addItem(result);
       } else {
         opResult = await ItemRepository.instance.updateItem(
@@ -476,6 +491,80 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     await _loadItems();
+  }
+
+  void _showItemQuickActionsSheet(HouseholdItem item) {
+    final l10n = AppLocalizations.of(context)!;
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                item.name,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: Text(l10n.duplicateItem),
+              onTap: () {
+                Navigator.pop(sheetContext);
+                _openAddEditScreen(existingItem: item, isDuplicate: true);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: Colors.red),
+              title: Text(
+                l10n.delete,
+                style: const TextStyle(color: Colors.red),
+              ),
+              onTap: () async {
+                Navigator.pop(sheetContext);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: Text(l10n.deleteItemTitle),
+                    content: Text(l10n.deleteItemConfirm(item.name)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: Text(l10n.cancel),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                        child: Text(l10n.delete),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true) {
+                  await ItemRepository.instance.deleteItem(item);
+                  await _loadItems();
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -674,6 +763,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               item: item,
                               onTap: () =>
                                   _openAddEditScreen(existingItem: item),
+                              onLongPress: () =>
+                                  _showItemQuickActionsSheet(item),
                             );
                           },
                         ),

@@ -13,8 +13,13 @@ import '../widgets/tag_selector_section.dart';
 
 class AddEditScreen extends StatefulWidget {
   final HouseholdItem? existingItem;
+  final bool isDuplicate;
 
-  const AddEditScreen({super.key, this.existingItem});
+  const AddEditScreen({
+    super.key,
+    this.existingItem,
+    this.isDuplicate = false,
+  });
 
   @override
   State<AddEditScreen> createState() => _AddEditScreenState();
@@ -47,7 +52,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
   String? _imageBase64;
   Uint8List? _imageBytes;
 
-  bool get _isEditing => widget.existingItem != null;
+  bool get _isEditing => widget.existingItem != null && !widget.isDuplicate;
 
   @override
   void initState() {
@@ -64,15 +69,21 @@ class _AddEditScreenState extends State<AddEditScreen> {
     _notesController = TextEditingController(text: item?.notes ?? '');
 
     _selectedCategory = item?.category ?? AppConstants.defaultCategories.first;
-    _expiryDate = item?.expiryDate;
-    _openedDate = item?.openedDate;
+    _expiryDate = widget.isDuplicate ? null : item?.expiryDate;
+    _openedDate = widget.isDuplicate ? null : item?.openedDate;
     _paoUnit = item?.paoUnit ?? 'months';
 
     _selectedOwner = item?.owner;
     _selectedLocation = item?.location;
 
     _alerts = item != null
-        ? List<AlertMilestone>.from(item.alerts)
+        ? item.alerts
+            .map(
+              (a) => widget.isDuplicate
+                  ? a.copyWith(clearCalendarEventId: true)
+                  : a,
+            )
+            .toList()
         : List<AlertMilestone>.from(AppConstants.defaultAlerts);
     _alerts.sort((a, b) => b.totalHours.compareTo(a.totalHours));
 
@@ -310,7 +321,7 @@ class _AddEditScreenState extends State<AddEditScreen> {
     }
 
     final savedItem = HouseholdItem(
-      id: widget.existingItem?.id,
+      id: _isEditing ? widget.existingItem!.id : null,
       name: _nameController.text.trim(),
       category: _selectedCategory,
       expiryDate: _expiryDate!,
@@ -365,14 +376,24 @@ class _AddEditScreenState extends State<AddEditScreen> {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
-        title: Text(_isEditing ? l10n.editItem : l10n.addNewItem),
+        title: Text(
+          widget.isDuplicate
+              ? l10n.duplicateItem
+              : (_isEditing ? l10n.editItem : l10n.addNewItem),
+        ),
         actions: [
-          if (_isEditing)
+          if (_isEditing) ...[
+            IconButton(
+              icon: const Icon(Icons.copy_outlined),
+              tooltip: l10n.duplicateItem,
+              onPressed: () => Navigator.pop(context, 'duplicate'),
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: Colors.red),
               tooltip: l10n.delete,
               onPressed: _confirmDelete,
             ),
+          ],
         ],
       ),
       body: SafeArea(
@@ -383,6 +404,43 @@ class _AddEditScreenState extends State<AddEditScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (widget.isDuplicate) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.copy_outlined,
+                          size: 18,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            l10n.duplicateHint,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 // === KHU VỰC 1: ẢNH CHỤP SẢN PHẨM ===
                 Center(
                   child: GestureDetector(

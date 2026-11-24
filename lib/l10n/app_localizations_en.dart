@@ -567,4 +567,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filterLocation => 'Location';
+
+  @override
+  String get duplicateItem => 'Duplicate Item';
+
+  @override
+  String get duplicateHint =>
+      'Copied from existing item. Please select the new expiry date.';
 }

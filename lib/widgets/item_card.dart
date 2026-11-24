@@ -6,11 +6,13 @@ import '../models/item_model.dart';
 class ItemCard extends StatelessWidget {
   final HouseholdItem item;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   const ItemCard({
     super.key,
     required this.item,
     this.onTap,
+    this.onLongPress,
   });
 
   // 1. Chọn màu sắc cảnh báo (nhận thêm biến isDark để tự chỉnh độ sáng ở Chế độ tối)
@@ -108,6 +110,7 @@ class ItemCard extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
